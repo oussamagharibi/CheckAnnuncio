@@ -1,0 +1,24 @@
+{
+  "name": "checkannuncio",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Analisi anti-truffa di annunci di vendita con AI",
+  "main": "server.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [
+    "truffa",
+    "annunci",
+    "ai"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.117.1",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1"
+  }
+}

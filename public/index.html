@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#070b10" />
+    <title>CheckAnnuncio — Ti stanno fregando? Scoprilo prima di pagare</title>
+    <meta
+      name="description"
+      content="Carica lo screenshot di un annuncio di vendita: l'AI valuta il rischio truffa, la coerenza del prezzo e ti prepara le domande giuste per il venditore."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9B%A1%EF%B8%8F%3C/text%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="sfondo" aria-hidden="true">
+      <span class="bagliore bagliore--verde"></span>
+      <span class="bagliore bagliore--rosso"></span>
+      <span class="griglia"></span>
+    </div>
+
+    <header class="intestazione">
+      <a class="marchio" href="/">
+        <span class="marchio__icona" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2.5 4.5 5.6v5.6c0 4.6 3.2 8.9 7.5 10.3 4.3-1.4 7.5-5.7 7.5-10.3V5.6L12 2.5Z" />
+            <path d="m8.8 11.9 2.2 2.2 4.2-4.4" />
+          </svg>
+        </span>
+        <span class="marchio__testo">Check<strong>Annuncio</strong></span>
+      </a>
+      <span class="intestazione__badge" id="badgeCrediti" hidden></span>
+    </header>
+
+    <main>
+      <!-- ================= HERO ================= -->
+      <section class="hero">
+        <p class="hero__occhiello">
+          <span class="puntino"></span> Analisi anti-truffa con intelligenza artificiale
+        </p>
+        <h1 class="hero__titolo">
+          Ti stanno fregando?<br />
+          <span class="gradiente">Scoprilo prima di pagare</span>
+        </h1>
+        <p class="hero__sottotitolo">
+          Carica lo screenshot di un annuncio — auto, telefono, qualsiasi cosa. In pochi secondi ti
+          diciamo quanto è rischioso, se il prezzo ha senso e cosa chiedere al venditore.
+        </p>
+        <ul class="hero__punti">
+          <li><span aria-hidden="true">⚡</span> Risultato in ~20 secondi</li>
+          <li><span aria-hidden="true">🔒</span> Nessun account, nessun salvataggio</li>
+          <li><span aria-hidden="true">🇮🇹</span> Tarato sul mercato italiano</li>
+        </ul>
+      </section>
+
+      <!-- ================= FORM ================= -->
+      <section class="pannello" id="zonaForm">
+        <!-- Passo 1: annuncio -->
+        <article class="scheda scheda--passo" data-passo="1">
+          <header class="scheda__testata">
+            <span class="passo__numero">1</span>
+            <div>
+              <h2>L'annuncio</h2>
+              <p>Carica lo screenshot oppure incolla il testo.</p>
+            </div>
+          </header>
+
+          <div class="selettore" role="tablist" aria-label="Modo di inserimento">
+            <button type="button" class="selettore__voce attivo" data-modo="immagine" role="tab" aria-selected="true">
+              <span aria-hidden="true">🖼️</span> Screenshot
+            </button>
+            <button type="button" class="selettore__voce" data-modo="link" role="tab" aria-selected="false">
+              <span aria-hidden="true">🔗</span> Link
+            </button>
+            <button type="button" class="selettore__voce" data-modo="testo" role="tab" aria-selected="false">
+              <span aria-hidden="true">✍️</span> Testo
+            </button>
+          </div>
+
+          <!-- Drop zone -->
+          <div class="modo" id="modoImmagine">
+            <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Carica uno screenshot dell'annuncio">
+              <input type="file" id="inputFile" accept="image/jpeg,image/png,image/webp" hidden />
+              <div class="dropzone__contenuto">
+                <div class="dropzone__icona" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 16V4" />
+                    <path d="m7.5 8.5 4.5-4.5 4.5 4.5" />
+                    <path d="M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15" />
+                  </svg>
+                </div>
+                <p class="dropzone__titolo">Trascina qui lo screenshot</p>
+                <p class="dropzone__sotto">oppure <span class="link">scegli un file</span> — JPG, PNG o WEBP, max 5 MB</p>
+              </div>
+              <div class="dropzone__overlay" aria-hidden="true">Lascia pure 👌</div>
+            </div>
+
+            <figure class="anteprima" id="anteprima" hidden>
+              <img id="anteprimaImg" alt="Anteprima dello screenshot caricato" />
+              <figcaption>
+                <span class="anteprima__nome" id="anteprimaNome"></span>
+                <span class="anteprima__peso" id="anteprimaPeso"></span>
+              </figcaption>
+              <button type="button" class="anteprima__rimuovi" id="rimuoviImg" aria-label="Rimuovi lo screenshot">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+                  <path d="m6 6 12 12M18 6 6 18" />
+                </svg>
+              </button>
+            </figure>
+          </div>
+
+          <!-- Link -->
+          <div class="modo" id="modoLink" hidden>
+            <label class="campo campo--input">
+              <span class="campo__etichetta">Indirizzo dell'annuncio</span>
+              <input
+                type="url"
+                id="inputLink"
+                inputmode="url"
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="https://www.subito.it/auto/…"
+              />
+            </label>
+            <p class="nota-modo">
+              <span aria-hidden="true">💡</span> Alcuni siti bloccano la lettura automatica. Se il link
+              non funziona te lo diciamo subito: in quel caso lo screenshot va sempre bene.
+            </p>
+          </div>
+
+          <!-- Textarea -->
+          <div class="modo" id="modoTesto" hidden>
+            <textarea
+              id="inputTesto"
+              maxlength="8000"
+              rows="8"
+              placeholder="Incolla qui il testo dell'annuncio: titolo, prezzo, descrizione, km, anno, condizioni, cosa ti ha scritto il venditore…"
+            ></textarea>
+            <div class="contatore"><span id="contatoreTesto">0</span> / 8000</div>
+          </div>
+        </article>
+
+        <!-- Passo 2: questionario -->
+        <article class="scheda scheda--passo" data-passo="2">
+          <header class="scheda__testata">
+            <span class="passo__numero">2</span>
+            <div>
+              <h2>Due domande su di te</h2>
+              <p>Servono per tarare i consigli. Nessun dato viene salvato.</p>
+            </div>
+          </header>
+
+          <fieldset class="campo">
+            <legend>Cosa stai comprando?</legend>
+            <div class="chip-gruppo" id="gruppoCategoria">
+              <button type="button" class="chip attivo" data-valore="auto"><span aria-hidden="true">🚗</span> Auto</button>
+              <button type="button" class="chip" data-valore="telefono"><span aria-hidden="true">📱</span> Telefono</button>
+              <button type="button" class="chip" data-valore="altro"><span aria-hidden="true">📦</span> Altro</button>
+            </div>
+          </fieldset>
+
+          <div class="extra-auto" id="extraAuto">
+            <div class="extra-auto__interno">
+              <div class="campi-griglia">
+                <label class="campo campo--input">
+                  <span class="campo__etichetta">La tua altezza <em>(cm)</em></span>
+                  <input type="number" id="inputAltezza" min="120" max="230" step="1" placeholder="es. 186" inputmode="numeric" />
+                </label>
+
+                <label class="campo campo--input">
+                  <span class="campo__etichetta">Km previsti all'anno</span>
+                  <input type="number" id="inputKm" min="0" max="200000" step="500" placeholder="es. 15000" inputmode="numeric" />
+                </label>
+
+                <label class="campo campo--input">
+                  <span class="campo__etichetta">Budget massimo <em>(€)</em></span>
+                  <input type="number" id="inputBudget" min="0" max="5000000" step="100" placeholder="es. 12000" inputmode="numeric" />
+                </label>
+              </div>
+
+              <fieldset class="campo">
+                <legend>Dove la userai di più?</legend>
+                <div class="chip-gruppo" id="gruppoZona">
+                  <button type="button" class="chip" data-valore="citta"><span aria-hidden="true">🏙️</span> Città</button>
+                  <button type="button" class="chip" data-valore="montagna"><span aria-hidden="true">⛰️</span> Montagna</button>
+                  <button type="button" class="chip" data-valore="campagna"><span aria-hidden="true">🌾</span> Campagna</button>
+                </div>
+              </fieldset>
+
+              <fieldset class="campo">
+                <legend>Sei neopatentato?</legend>
+                <div class="chip-gruppo" id="gruppoNeopatentato">
+                  <button type="button" class="chip" data-valore="si">Sì</button>
+                  <button type="button" class="chip" data-valore="no">No</button>
+                </div>
+              </fieldset>
+            </div>
+          </div>
+        </article>
+
+        <!-- Azione -->
+        <div class="azione">
+          <button type="button" class="bottone bottone--primario" id="bottoneAnalizza">
+            <span class="bottone__testo">Analizza l'annuncio</span>
+            <svg class="bottone__freccia" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M5 12h13" /><path d="m12.5 5.5 6.5 6.5-6.5 6.5" />
+            </svg>
+          </button>
+          <p class="azione__nota" id="notaLimite"></p>
+          <div class="avviso" id="avvisoErrore" role="alert" hidden>
+            <span aria-hidden="true">⚠️</span><span id="testoErrore"></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= LOADER ================= -->
+      <section class="caricamento" id="caricamento" hidden aria-live="polite">
+        <div class="radar" aria-hidden="true">
+          <span class="radar__anello"></span>
+          <span class="radar__anello"></span>
+          <span class="radar__anello"></span>
+          <span class="radar__nucleo">🛡️</span>
+        </div>
+        <p class="caricamento__frase" id="fraseCaricamento">Leggo l'annuncio…</p>
+        <div class="barra"><span class="barra__riempimento"></span></div>
+      </section>
+
+      <!-- ================= RISULTATI ================= -->
+      <section class="risultati" id="risultati" hidden>
+        <h2 class="risultati__titolo">Ecco cosa abbiamo trovato</h2>
+
+        <!-- Card 1 -->
+        <article class="scheda scheda--risultato" id="cardRischio" style="--ritardo: 0ms">
+          <header class="scheda__testata scheda__testata--risultato">
+            <span class="scheda__icona" aria-hidden="true">🚨</span>
+            <h3>Rischio truffa</h3>
+          </header>
+
+          <div class="punteggio">
+            <div class="punteggio__numero">
+              <span id="punteggioValore">–</span><span class="punteggio__su">/10</span>
+            </div>
+            <div class="punteggio__destra">
+              <span class="punteggio__etichetta" id="punteggioEtichetta">In attesa</span>
+              <div class="gauge">
+                <span class="gauge__riempimento" id="gaugeRiempimento"></span>
+              </div>
+              <div class="gauge__scala"><span>Sicuro</span><span>Dubbio</span><span>Pericolo</span></div>
+            </div>
+          </div>
+
+          <ul class="segnali" id="listaSegnali"></ul>
+        </article>
+
+        <!-- Card 2 -->
+        <article class="scheda scheda--risultato" id="cardValutazione" style="--ritardo: 120ms">
+          <header class="scheda__testata scheda__testata--risultato">
+            <span class="scheda__icona" aria-hidden="true">⚖️</span>
+            <h3>Valutazione</h3>
+          </header>
+          <p class="verdetto" id="testoVerdetto"></p>
+          <ul class="dettagli" id="listaDettagli"></ul>
+        </article>
+
+        <!-- Card 3 -->
+        <article class="scheda scheda--risultato" id="cardDomande" style="--ritardo: 240ms">
+          <header class="scheda__testata scheda__testata--risultato">
+            <span class="scheda__icona" aria-hidden="true">💬</span>
+            <h3>Domande da fare al venditore</h3>
+          </header>
+          <p class="scheda__intro">Copiale e mandagliele: le risposte (o i silenzi) dicono tutto.</p>
+          <ol class="domande" id="listaDomande"></ol>
+          <button type="button" class="bottone bottone--secondario bottone--largo" id="copiaTutte">
+            <span aria-hidden="true">📋</span> Copia tutte le domande
+          </button>
+        </article>
+
+        <div class="ricomincia">
+          <button type="button" class="bottone bottone--fantasma" id="nuovaAnalisi">
+            Analizza un altro annuncio
+          </button>
+        </div>
+      </section>
+    </main>
+
+    <footer class="pieDiPagina">
+      <p class="disclaimer">
+        Valutazione indicativa generata da AI, non costituisce garanzia né consulenza legale
+      </p>
+      <p class="pieDiPagina__extra">
+        CheckAnnuncio · Non inviare mai denaro in anticipo a chi non hai incontrato di persona.
+      </p>
+    </footer>
+
+    <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
