@@ -5,12 +5,14 @@
 (function () {
   'use strict';
 
+  var MAX_FOTO = 4;
   var MAX_BYTE = 5 * 1024 * 1024;
+  var MAX_TOTALE_BYTE = 12 * 1024 * 1024;
   var TIPI_AMMESSI = ['image/jpeg', 'image/png', 'image/webp'];
 
   var stato = {
     modo: 'immagine',
-    immagine: null, // { dataUrl, tipo, nome, byte }
+    immagini: [], // [{ dataUrl, tipo, nome, byte }] — massimo MAX_FOTO
     categoria: 'auto',
     zona: null,
     neopatentato: null,
@@ -27,11 +29,12 @@
 
   var dropzone = $('dropzone');
   var inputFile = $('inputFile');
-  var anteprima = $('anteprima');
-  var anteprimaImg = $('anteprimaImg');
-  var anteprimaNome = $('anteprimaNome');
-  var anteprimaPeso = $('anteprimaPeso');
-  var rimuoviImg = $('rimuoviImg');
+  var anteprime = $('anteprime');
+  var barraFoto = $('barraFoto');
+  var conteggioFoto = $('conteggioFoto');
+  var svuotaFoto = $('svuotaFoto');
+  var notaFoto = $('notaFoto');
+  var dropzoneTitolo = $('dropzoneTitolo');
   var modoImmagine = $('modoImmagine');
   var modoLink = $('modoLink');
   var modoTesto = $('modoTesto');
@@ -114,11 +117,83 @@
   });
 
   // ---------------------------------------------------------------
-  // Upload immagine
+  // Upload foto (fino a MAX_FOTO)
   // ---------------------------------------------------------------
+
+  var ICONA_X =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">' +
+    '<path d="m6 6 12 12M18 6 6 18"/></svg>';
+
+  function totaleByte() {
+    return stato.immagini.reduce(function (somma, i) {
+      return somma + i.byte;
+    }, 0);
+  }
+
+  function disegnaAnteprime() {
+    anteprime.innerHTML = '';
+
+    stato.immagini.forEach(function (immagine, indice) {
+      var figura = document.createElement('figure');
+      figura.className = 'anteprima';
+
+      var img = document.createElement('img');
+      img.src = immagine.dataUrl;
+      img.alt = 'Foto ' + (indice + 1) + ': ' + immagine.nome;
+
+      var numero = document.createElement('span');
+      numero.className = 'anteprima__numero';
+      numero.textContent = String(indice + 1);
+
+      var didascalia = document.createElement('figcaption');
+      var nome = document.createElement('span');
+      nome.className = 'anteprima__nome';
+      nome.textContent = immagine.nome;
+      var peso = document.createElement('span');
+      peso.className = 'anteprima__peso';
+      peso.textContent = formattaPeso(immagine.byte);
+      didascalia.appendChild(nome);
+      didascalia.appendChild(peso);
+
+      var rimuovi = document.createElement('button');
+      rimuovi.type = 'button';
+      rimuovi.className = 'anteprima__rimuovi';
+      rimuovi.setAttribute('aria-label', 'Rimuovi la foto ' + (indice + 1));
+      rimuovi.innerHTML = ICONA_X;
+      rimuovi.addEventListener('click', function () {
+        stato.immagini.splice(indice, 1);
+        disegnaAnteprime();
+        nascondiErrore();
+      });
+
+      figura.appendChild(img);
+      figura.appendChild(numero);
+      figura.appendChild(didascalia);
+      figura.appendChild(rimuovi);
+      anteprime.appendChild(figura);
+    });
+
+    var quante = stato.immagini.length;
+    anteprime.hidden = quante === 0;
+    barraFoto.hidden = quante === 0;
+    notaFoto.hidden = quante === 0;
+    // La dropzone resta visibile finché c'è posto per un'altra foto.
+    dropzone.hidden = quante >= MAX_FOTO;
+
+    if (quante > 0) {
+      conteggioFoto.textContent =
+        quante + ' di ' + MAX_FOTO + ' foto · ' + formattaPeso(totaleByte());
+    }
+    dropzoneTitolo.textContent = quante === 0 ? 'Trascina qui le foto' : 'Aggiungi un\'altra foto';
+  }
 
   function caricaFile(file) {
     if (!file) return;
+
+    if (stato.immagini.length >= MAX_FOTO) {
+      mostraErrore('Puoi caricare al massimo ' + MAX_FOTO + ' foto. Rimuovine una per aggiungerne un\'altra.');
+      return;
+    }
 
     var tipo = (file.type || '').toLowerCase();
     if (tipo === 'image/jpg') tipo = 'image/jpeg';
@@ -130,33 +205,67 @@
 
     if (file.size > MAX_BYTE) {
       mostraErrore(
-        'Lo screenshot pesa ' + formattaPeso(file.size) + ': il massimo è 5 MB. Riducilo e riprova.'
+        '"' + (file.name || 'La foto') + '" pesa ' + formattaPeso(file.size) +
+          ': il massimo è 5 MB per foto.'
       );
+      return;
+    }
+
+    if (totaleByte() + file.size > MAX_TOTALE_BYTE) {
+      mostraErrore('Le foto insieme supererebbero i 12 MB. Rimuovine una o usane di più leggere.');
       return;
     }
 
     var lettore = new FileReader();
 
     lettore.onerror = function () {
-      mostraErrore("Non siamo riusciti a leggere il file. Prova con un'altra immagine.");
+      mostraErrore("Non siamo riusciti a leggere il file. Prova con un'altra foto.");
     };
 
     lettore.onload = function () {
-      stato.immagine = {
+      if (stato.immagini.length >= MAX_FOTO) return; // corsa fra letture parallele
+      stato.immagini.push({
         dataUrl: String(lettore.result),
         tipo: tipo,
-        nome: file.name || 'screenshot',
+        nome: file.name || 'foto',
         byte: file.size
-      };
-      anteprimaImg.src = stato.immagine.dataUrl;
-      anteprimaNome.textContent = stato.immagine.nome;
-      anteprimaPeso.textContent = formattaPeso(file.size);
-      anteprima.hidden = false;
-      dropzone.hidden = true;
+      });
+      disegnaAnteprime();
       nascondiErrore();
     };
 
     lettore.readAsDataURL(file);
+  }
+
+  /** Carica una lista di file rispettando il posto rimasto. */
+  function caricaFileMultipli(elenco) {
+    if (!elenco || !elenco.length) return;
+
+    var posti = MAX_FOTO - stato.immagini.length;
+    if (posti <= 0) {
+      mostraErrore('Hai già ' + MAX_FOTO + ' foto: rimuovine una per aggiungerne un\'altra.');
+      return;
+    }
+
+    var candidati = Array.prototype.slice.call(elenco, 0, posti);
+    if (elenco.length > posti) {
+      mostraToast('Aggiunte le prime ' + posti + ' foto (massimo ' + MAX_FOTO + ')');
+    }
+
+    // Il totale va verificato qui in modo sincrono: le letture partono in
+    // parallelo, quindi dentro caricaFile il conteggio sarebbe ancora fermo.
+    var totale = totaleByte();
+    var accettati = [];
+    for (var i = 0; i < candidati.length; i++) {
+      if (candidati[i].size <= MAX_BYTE && totale + candidati[i].size > MAX_TOTALE_BYTE) {
+        mostraErrore('Le foto insieme supererebbero i 12 MB: ne ho aggiunte solo alcune.');
+        break;
+      }
+      totale += candidati[i].size;
+      accettati.push(candidati[i]);
+    }
+
+    accettati.forEach(caricaFile);
   }
 
   dropzone.addEventListener('click', function () {
@@ -171,7 +280,7 @@
   });
 
   inputFile.addEventListener('change', function () {
-    caricaFile(inputFile.files && inputFile.files[0]);
+    caricaFileMultipli(inputFile.files);
     inputFile.value = '';
   });
 
@@ -197,7 +306,7 @@
     e.stopPropagation();
     dropzone.classList.remove('trascinamento');
     if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
-      caricaFile(e.dataTransfer.files[0]);
+      caricaFileMultipli(e.dataTransfer.files);
     }
   });
 
@@ -212,26 +321,29 @@
   window.addEventListener('paste', function (e) {
     if (stato.modo !== 'immagine' || !e.clipboardData) return;
     var elementi = e.clipboardData.items || [];
-    for (var i = 0; i < elementi.length; i++) {
+    var file = null;
+    for (var i = 0; i < elementi.length && !file; i++) {
       if (elementi[i].type && elementi[i].type.indexOf('image/') === 0) {
-        var file = elementi[i].getAsFile();
-        if (file) {
-          caricaFile(file);
-          mostraToast('Screenshot incollato ✓');
-          e.preventDefault();
-        }
-        return;
+        file = elementi[i].getAsFile();
       }
     }
+    if (!file) return;
+    e.preventDefault();
+    if (stato.immagini.length >= MAX_FOTO) {
+      mostraErrore('Hai già ' + MAX_FOTO + ' foto: rimuovine una per incollarne un\'altra.');
+      return;
+    }
+    caricaFile(file);
+    mostraToast('Screenshot incollato ✓');
   });
 
-  rimuoviImg.addEventListener('click', function () {
-    stato.immagine = null;
-    anteprimaImg.removeAttribute('src');
-    anteprima.hidden = true;
-    dropzone.hidden = false;
+  svuotaFoto.addEventListener('click', function () {
+    stato.immagini = [];
+    disegnaAnteprime();
     nascondiErrore();
   });
+
+  disegnaAnteprime();
 
   // ---------------------------------------------------------------
   // Textarea
@@ -600,9 +712,13 @@
   function costruisciCorpo() {
     var corpo = { categoria: stato.categoria };
 
-    if (stato.immagine) {
-      corpo.immagine = stato.immagine.dataUrl;
-      corpo.tipoImmagine = stato.immagine.tipo;
+    if (stato.immagini.length > 0) {
+      corpo.immagini = stato.immagini.map(function (i) {
+        return i.dataUrl;
+      });
+      corpo.tipiImmagine = stato.immagini.map(function (i) {
+        return i.tipo;
+      });
     }
 
     var testo = inputTesto.value.trim();
@@ -651,13 +767,13 @@
     var testo = inputTesto.value.trim();
     var link = inputLink.value.trim();
 
-    if (!stato.immagine && !link && testo.length < 20) {
+    if (stato.immagini.length === 0 && !link && testo.length < 20) {
       if (stato.modo === 'link') {
         mostraErrore("Incolla il link dell'annuncio (es. https://www.subito.it/…).");
       } else if (stato.modo === 'testo') {
         mostraErrore("Incolla il testo dell'annuncio: servono almeno 20 caratteri.");
       } else {
-        mostraErrore("Carica prima lo screenshot dell'annuncio (oppure usa il link o il testo).");
+        mostraErrore("Carica almeno una foto dell'annuncio (oppure usa il link o il testo).");
       }
       return;
     }

@@ -76,7 +76,7 @@
 
           <div class="selettore" role="tablist" aria-label="Modo di inserimento">
             <button type="button" class="selettore__voce attivo" data-modo="immagine" role="tab" aria-selected="true">
-              <span aria-hidden="true">🖼️</span> Screenshot
+              <span aria-hidden="true">🖼️</span> Foto
             </button>
             <button type="button" class="selettore__voce" data-modo="link" role="tab" aria-selected="false">
               <span aria-hidden="true">🔗</span> Link
@@ -88,8 +88,8 @@
 
           <!-- Drop zone -->
           <div class="modo" id="modoImmagine">
-            <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Carica uno screenshot dell'annuncio">
-              <input type="file" id="inputFile" accept="image/jpeg,image/png,image/webp" hidden />
+            <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Carica le foto dell'annuncio">
+              <input type="file" id="inputFile" accept="image/jpeg,image/png,image/webp" multiple hidden />
               <div class="dropzone__contenuto">
                 <div class="dropzone__icona" aria-hidden="true">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -98,24 +98,26 @@
                     <path d="M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15" />
                   </svg>
                 </div>
-                <p class="dropzone__titolo">Trascina qui lo screenshot</p>
-                <p class="dropzone__sotto">oppure <span class="link">scegli un file</span> — JPG, PNG o WEBP, max 5 MB</p>
+                <p class="dropzone__titolo" id="dropzoneTitolo">Trascina qui le foto</p>
+                <p class="dropzone__sotto">
+                  oppure <span class="link">scegline dal dispositivo</span> — fino a 4 foto, JPG/PNG/WEBP, max 5 MB l'una
+                </p>
               </div>
               <div class="dropzone__overlay" aria-hidden="true">Lascia pure 👌</div>
             </div>
 
-            <figure class="anteprima" id="anteprima" hidden>
-              <img id="anteprimaImg" alt="Anteprima dello screenshot caricato" />
-              <figcaption>
-                <span class="anteprima__nome" id="anteprimaNome"></span>
-                <span class="anteprima__peso" id="anteprimaPeso"></span>
-              </figcaption>
-              <button type="button" class="anteprima__rimuovi" id="rimuoviImg" aria-label="Rimuovi lo screenshot">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
-                  <path d="m6 6 12 12M18 6 6 18" />
-                </svg>
-              </button>
-            </figure>
+            <div class="anteprime" id="anteprime" hidden></div>
+
+            <div class="barra-foto" id="barraFoto" hidden>
+              <span class="barra-foto__conteggio" id="conteggioFoto"></span>
+              <button type="button" class="barra-foto__svuota" id="svuotaFoto">Rimuovi tutte</button>
+            </div>
+
+            <p class="nota-modo" id="notaFoto" hidden>
+              <span aria-hidden="true">💡</span> Più foto = analisi migliore: aggiungi titolo con prezzo,
+              descrizione, scheda tecnica e la chat con il venditore. Le incoerenze fra una foto e l'altra
+              sono spesso il segnale di truffa più forte.
+            </p>
           </div>
 
           <!-- Link -->

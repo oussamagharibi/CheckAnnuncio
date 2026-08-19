@@ -29,7 +29,9 @@ const APIConnectionError = Anthropic.APIConnectionError || SDK.APIConnectionErro
 
 const PORT = process.env.PORT || 3000;
 const MODELLO = 'claude-sonnet-4-6';
-const MAX_IMMAGINE_BYTE = 5 * 1024 * 1024; // 5 MB
+const MAX_IMMAGINI = 4; // foto per analisi
+const MAX_IMMAGINE_BYTE = 5 * 1024 * 1024; // 5 MB per foto
+const MAX_TOTALE_IMMAGINI_BYTE = 12 * 1024 * 1024; // 12 MB per richiesta
 const MAX_TESTO_CARATTERI = 8000;
 const TIPI_IMMAGINE_AMMESSI = ['image/jpeg', 'image/png', 'image/webp'];
 const LIMITE_ANALISI_GIORNALIERE = 10;
@@ -52,9 +54,9 @@ const app = express();
 app.set('trust proxy', true);
 app.disable('x-powered-by');
 
-// Il body contiene l'immagine in base64: serve un limite più alto di 5 MB
-// perché la codifica base64 aggiunge circa il 33%.
-app.use(express.json({ limit: '8mb' }));
+// Il body contiene le foto in base64: serve un limite più alto dei 12 MB
+// complessivi, perché la codifica base64 aggiunge circa il 33%.
+app.use(express.json({ limit: '18mb' }));
 // maxAge 0 + ETag: il browser rivalida a ogni caricamento e riceve 304 se nulla
 // è cambiato. Con una cache lunga, dopo un deploy si finisce con l'HTML nuovo e
 // il JS vecchio — cioè funzionalità visibili ma inerti.
@@ -237,9 +239,20 @@ function costruisciPromptUtente(dati) {
     righe.push('"""');
   }
 
-  if (dati.immagine) {
+  const quante = dati.immagini ? dati.immagini.length : 0;
+  if (quante === 1) {
     righe.push('');
-    righe.push("Nell'immagine allegata trovi lo screenshot dell'annuncio: leggi con attenzione prezzo, titolo, descrizione, dati del veicolo/oggetto e ogni informazione sul venditore.");
+    righe.push(
+      "Nell'immagine allegata trovi lo screenshot dell'annuncio: leggi con attenzione prezzo, titolo, descrizione, dati del veicolo/oggetto e ogni informazione sul venditore."
+    );
+  } else if (quante > 1) {
+    righe.push('');
+    righe.push(
+      `Sono allegate ${quante} immagini, numerate da 1 a ${quante}. Possono essere parti diverse dello stesso annuncio (titolo, prezzo, descrizione, scheda tecnica), foto dell'oggetto, oppure screenshot della conversazione con il venditore.`
+    );
+    righe.push(
+      "Esaminale TUTTE e leggile come un unico annuncio. Presta particolare attenzione alle incoerenze fra un'immagine e l'altra (prezzi diversi, km diversi, foto che non sembrano dello stesso oggetto, dettagli che cambiano): sono fra i segnali di truffa più forti. Quando un segnale nasce da una specifica immagine, cita il suo numero nel dettaglio."
+    );
   }
 
   righe.push('');
@@ -262,14 +275,18 @@ class ErroreUtente extends Error {
 }
 
 /**
- * Estrae e valida un'immagine ricevuta come data URL o base64 puro.
- * @returns {{mediaType: string, dati: string} | null}
+ * Estrae e valida una foto ricevuta come data URL o base64 puro.
+ * `posizione` è il numero della foto (1-based) quando ce n'è più di una:
+ * serve solo a scrivere messaggi d'errore che dicano *quale* foto è il problema.
+ * @returns {{mediaType: string, dati: string, byte: number} | null}
  */
-function validaImmagine(immagine, tipoDichiarato) {
+function validaImmagine(immagine, tipoDichiarato, posizione) {
   if (!immagine) return null;
 
+  const chi = posizione ? `La foto ${posizione}` : 'Lo screenshot';
+
   if (typeof immagine !== 'string') {
-    throw new ErroreUtente('immagine_non_valida', "Il formato dell'immagine non è valido. Ricarica lo screenshot.");
+    throw new ErroreUtente('immagine_non_valida', `${chi} non è in un formato valido. Ricaricala.`);
   }
 
   let mediaType = typeof tipoDichiarato === 'string' ? tipoDichiarato.toLowerCase() : '';
@@ -286,24 +303,68 @@ function validaImmagine(immagine, tipoDichiarato) {
   if (!TIPI_IMMAGINE_AMMESSI.includes(mediaType)) {
     throw new ErroreUtente(
       'formato_non_supportato',
-      'Formato immagine non supportato: accettiamo solo JPG, PNG o WEBP.'
+      `${chi} è in un formato non supportato: accettiamo solo JPG, PNG o WEBP.`
     );
   }
 
   base64 = base64.replace(/\s/g, '');
   if (!/^[A-Za-z0-9+/]+={0,2}$/.test(base64) || base64.length < 100) {
-    throw new ErroreUtente('immagine_non_valida', "L'immagine sembra danneggiata. Prova a ricaricarla.");
+    throw new ErroreUtente('immagine_non_valida', `${chi} sembra danneggiata. Prova a ricaricarla.`);
   }
 
   const byteStimati = Math.floor((base64.length * 3) / 4);
   if (byteStimati > MAX_IMMAGINE_BYTE) {
+    throw new ErroreUtente('immagine_troppo_grande', `${chi} supera i 5 MB. Riducila e riprova.`);
+  }
+
+  return { mediaType, dati: base64, byte: byteStimati };
+}
+
+/**
+ * Valida l'elenco di foto della richiesta.
+ * Accetta `immagini: []` (nuovo) oppure `immagine` singola (retrocompatibile).
+ * @returns {Array<{mediaType: string, dati: string, byte: number}>}
+ */
+function validaImmagini(corpo) {
+  let elenco;
+  if (Array.isArray(corpo.immagini)) elenco = corpo.immagini;
+  else if (corpo.immagine) elenco = [corpo.immagine];
+  else elenco = [];
+
+  elenco = elenco.filter((v) => v !== null && v !== undefined && v !== '');
+  if (elenco.length === 0) return [];
+
+  if (elenco.length > MAX_IMMAGINI) {
     throw new ErroreUtente(
-      'immagine_troppo_grande',
-      'Lo screenshot supera i 5 MB. Riducilo o fai uno screenshot più piccolo.'
+      'troppe_immagini',
+      `Puoi caricare al massimo ${MAX_IMMAGINI} foto per analisi: ne hai inviate ${elenco.length}.`
     );
   }
 
-  return { mediaType, dati: base64 };
+  const tipi = Array.isArray(corpo.tipiImmagine) ? corpo.tipiImmagine : [];
+  const numerata = elenco.length > 1;
+  const immagini = [];
+  let totale = 0;
+
+  for (let i = 0; i < elenco.length; i++) {
+    const immagine = validaImmagine(
+      elenco[i],
+      tipi[i] || corpo.tipoImmagine,
+      numerata ? i + 1 : null
+    );
+    if (!immagine) continue;
+    totale += immagine.byte;
+    immagini.push(immagine);
+  }
+
+  if (totale > MAX_TOTALE_IMMAGINI_BYTE) {
+    throw new ErroreUtente(
+      'immagini_troppo_grandi',
+      `Le foto insieme superano i 12 MB (${(totale / 1024 / 1024).toFixed(1)} MB). Caricane meno o riducile.`
+    );
+  }
+
+  return immagini;
 }
 
 // Host che non hanno senso per un annuncio pubblico: li rifiutiamo subito.
@@ -364,13 +425,13 @@ function validaRichiesta(corpo) {
     testo = testo.slice(0, MAX_TESTO_CARATTERI);
   }
 
-  const immagine = validaImmagine(corpo.immagine, corpo.tipoImmagine);
+  const immagini = validaImmagini(corpo);
   const link = validaLink(corpo.link);
 
-  if (!immagine && !link && testo.length < 20) {
+  if (immagini.length === 0 && !link && testo.length < 20) {
     throw new ErroreUtente(
       'contenuto_mancante',
-      "Carica lo screenshot dell'annuncio, incolla il link oppure il testo (almeno 20 caratteri)."
+      "Carica almeno una foto dell'annuncio, incolla il link oppure il testo (almeno 20 caratteri)."
     );
   }
 
@@ -399,7 +460,7 @@ function validaRichiesta(corpo) {
   return {
     categoria,
     testo,
-    immagine,
+    immagini,
     profilo,
     link: link ? link.url : null,
     hostLink: link ? link.host : null
@@ -552,16 +613,24 @@ function validaSchema(oggetto) {
 
 function costruisciContenutoUtente(dati) {
   const contenuto = [];
-  if (dati.immagine) {
+  const immagini = dati.immagini || [];
+
+  immagini.forEach((immagine, i) => {
+    // Con più foto, l'etichetta prima di ognuna permette all'AI di citarle
+    // per numero ("nella foto 2 il prezzo è diverso").
+    if (immagini.length > 1) {
+      contenuto.push({ type: 'text', text: `Immagine ${i + 1} di ${immagini.length}:` });
+    }
     contenuto.push({
       type: 'image',
       source: {
         type: 'base64',
-        media_type: dati.immagine.mediaType,
-        data: dati.immagine.dati
+        media_type: immagine.mediaType,
+        data: immagine.dati
       }
     });
-  }
+  });
+
   contenuto.push({ type: 'text', text: costruisciPromptUtente(dati) });
   return contenuto;
 }
@@ -715,7 +784,7 @@ async function analizzaConAI(dati, consumo) {
 
     // Il link era l'unico materiale ma la pagina non è stata letta: meglio
     // fermarsi che restituire un'analisi inventata sull'URL.
-    if (dati.link && !dati.immagine && !dati.testo && !esitoFetch.riuscito) {
+    if (dati.link && dati.immagini.length === 0 && !dati.testo && !esitoFetch.riuscito) {
       throw erroreLinkNonLeggibile(esitoFetch.codiceErrore);
     }
 
@@ -723,7 +792,7 @@ async function analizzaConAI(dati, consumo) {
       const analisi = primoJsonValido(risposta);
 
       if (analisi.valutazione.verdetto.startsWith(MARCATORE_PAGINA_KO)) {
-        if (!dati.immagine && !dati.testo) {
+        if (dati.immagini.length === 0 && !dati.testo) {
           throw erroreLinkNonLeggibile('contenuto_non_analizzabile');
         }
         // C'è altro materiale: togliamo il marcatore e proseguiamo.
@@ -811,7 +880,11 @@ app.post('/api/analizza', async (req, res) => {
   }
 
   const consumo = nuovoConsumo();
-  const canale = dati.link ? 'link' : dati.immagine ? 'screenshot' : 'testo';
+  const canale = dati.link
+    ? 'link'
+    : dati.immagini.length > 0
+      ? `foto x${dati.immagini.length}`
+      : 'testo';
 
   try {
     const analisi = await analizzaConAI(dati, consumo);
@@ -843,7 +916,7 @@ app.post('/api/analizza', async (req, res) => {
       console.error('[analizza] richiesta rifiutata dall\'API:', errore.message);
       return res.status(400).json({
         errore: 'richiesta_rifiutata',
-        messaggio: "L'immagine o il testo non sono stati accettati. Prova con uno screenshot più leggero o incolla il testo."
+        messaggio: "Una delle foto non è stata accettata: potrebbe essere danneggiata o in un formato anomalo. Riprova rifacendo lo screenshot, oppure incolla il testo dell'annuncio."
       });
     }
 
@@ -878,8 +951,8 @@ app.post('/api/analizza', async (req, res) => {
 app.use((errore, req, res, next) => {
   if (errore && errore.type === 'entity.too.large') {
     return res.status(413).json({
-      errore: 'immagine_troppo_grande',
-      messaggio: 'Lo screenshot è troppo pesante (max 5 MB). Riducilo e riprova.'
+      errore: 'immagini_troppo_grandi',
+      messaggio: 'Le foto sono troppo pesanti (max 5 MB ciascuna, 12 MB in totale). Riducile e riprova.'
     });
   }
   if (errore && errore.type === 'entity.parse.failed') {

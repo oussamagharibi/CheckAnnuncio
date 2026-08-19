@@ -68,7 +68,7 @@ Se la chiave manca, il server parte comunque ma `/api/analizza` risponde con un 
 ### A. Dal browser (test completo)
 
 1. Apri http://localhost:3000
-2. Scegli come dare l'annuncio: trascina uno **screenshot** nella dropzone, incolla un **link** (scheda 🔗) o usa la scheda **Testo** con l'annuncio di prova qui sotto
+2. Scegli come dare l'annuncio: trascina **da 1 a 4 foto** nella dropzone, incolla un **link** (scheda 🔗) o usa la scheda **Testo** con l'annuncio di prova qui sotto
 3. Scegli la categoria **Auto**; se vuoi anche il giudizio "è adatta a me?", accendi l'interruttore e compila altezza / peso / zona / km annui / budget / neopatentato
 4. Premi **Analizza l'annuncio**
 
@@ -154,9 +154,11 @@ Body JSON (serve **almeno uno** tra `immagine`, `link` e `testo`):
 | ------------------- | ------- | -------------------------------------------------------------------- |
 | `categoria`         | string  | **obbligatorio** — `auto` \| `telefono` \| `altro`                    |
 | `link`              | string  | URL dell'annuncio (http/https, max 2000 caratteri); lo schema può essere omesso |
-| `immagine`          | string  | data URL base64 (`data:image/png;base64,…`) — jpg/png/webp, max 5 MB  |
+| `immagine`          | string  | una sola foto, retrocompatibile — equivale a `immagini` con un elemento |
 | `tipoImmagine`      | string  | opzionale, se `immagine` è base64 puro senza prefisso data URL        |
 | `testo`             | string  | testo dell'annuncio, min 20 caratteri se non c'è l'immagine, max 8000 |
+| `immagini`          | string[] | fino a **4** foto in data URL base64; 5 MB l'una, 12 MB in totale     |
+| `tipiImmagine`      | string[] | opzionale, i MIME nello stesso ordine di `immagini`                   |
 | `profilo`           | object  | **facoltativo** — inviarlo attiva la valutazione personalizzata; ometterlo la disattiva |
 | `profilo.altezza`   | number  | cm (120-230), usato solo per `categoria: auto`                        |
 | `profilo.peso`      | number  | kg (30-250)                                                           |
@@ -190,9 +192,9 @@ Errori (sempre con un messaggio in italiano pronto da mostrare all'utente):
 
 | Codice HTTP | `errore`                                   | Quando                                       |
 | ----------- | ------------------------------------------ | -------------------------------------------- |
-| 400         | `categoria_mancante`, `contenuto_mancante`, `formato_non_supportato`, `immagine_non_valida`, `immagine_troppo_grande`, `link_non_valido`, `richiesta_rifiutata` | input non valido |
+| 400         | `categoria_mancante`, `contenuto_mancante`, `formato_non_supportato`, `immagine_non_valida`, `immagine_troppo_grande`, `troppe_immagini`, `immagini_troppo_grandi`, `link_non_valido`, `richiesta_rifiutata` | input non valido |
 | 400         | `link_non_leggibile`                       | il link è stato aperto ma non conteneva un annuncio leggibile |
-| 413         | `immagine_troppo_grande`                   | body oltre il limite                         |
+| 413         | `immagini_troppo_grandi`                   | body oltre il limite (18 MB)                 |
 | 429         | `limite_raggiunto`                         | superato il rate limit giornaliero           |
 | 502         | `json_non_valido`, `chiave_non_valida`     | l'AI non ha prodotto JSON valido dopo i retry |
 | 503         | `chiave_mancante`, `ai_sovraccarica`, `ai_irraggiungibile`, `ai_non_disponibile` | servizio non configurato o API non raggiungibile |
@@ -201,6 +203,26 @@ Errori (sempre con un messaggio in italiano pronto da mostrare all'utente):
 ### `GET /api/stato`
 
 Restituisce `{ ok, configurato, limiteGiornaliero, analisiRimaste }` per l'IP chiamante.
+
+---
+
+## Più foto per annuncio (fino a 4)
+
+Un annuncio raramente sta in uno screenshot solo: titolo e prezzo sono in alto, la descrizione più giù, la scheda tecnica in un'altra schermata, la chat col venditore da un'altra parte ancora. Si possono caricare **fino a 4 foto**, 5 MB l'una e 12 MB in totale.
+
+Ogni immagine viene inviata all'AI preceduta da un'etichetta `Immagine N di M`, così può citarle per numero nei risultati. Il prompt le fa leggere come **un unico annuncio** e chiede attenzione esplicita alle **incoerenze fra una foto e l'altra**: è lì che si annidano i segnali di truffa più forti.
+
+Verificato con tre screenshot dello stesso finto annuncio Audi A3, con contraddizioni piazzate apposta:
+
+| Foto | Contenuto |
+| --- | --- |
+| 1 | Titolo, **8.500 €**, **92.000 km** |
+| 2 | Descrizione, **«PREZZO REALE 3.900 €»**, **«145.000 km effettivi»** |
+| 3 | Chat: venditore in Germania, caparra di 800 € su PostePay |
+
+Risultato: **rischio 10/10**, con i due primi segnali dedicati proprio alle contraddizioni — *«L'immagine 1 riporta 8.500 EUR, ma la descrizione (immagine 2) dichiara PREZZO REALE 3.900 EURO»* e *«Il titolo dichiara 92.000 km, ma la descrizione ammette 145.000 km effettivi»*. Con una foto sola nessuna delle due sarebbe emersa.
+
+Costi misurati: 1 foto $0,033, 3 foto $0,047. Ogni immagine aggiunge token in input, ma la crescita è contenuta perché il grosso del costo resta l'output.
 
 ---
 
