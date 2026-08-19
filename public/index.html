@@ -154,8 +154,8 @@
           <header class="scheda__testata">
             <span class="passo__numero">2</span>
             <div>
-              <h2>Due domande su di te</h2>
-              <p>Servono per tarare i consigli. Nessun dato viene salvato.</p>
+              <h2>Cosa stai comprando</h2>
+              <p>Serve a tarare l'analisi. Nessun dato viene salvato.</p>
             </div>
           </header>
 
@@ -168,12 +168,28 @@
             </div>
           </fieldset>
 
+          <div class="zona-profilo" id="zonaProfilo" hidden>
+            <label class="interruttore" for="flagProfilo">
+              <input type="checkbox" id="flagProfilo" />
+              <span class="interruttore__pista" aria-hidden="true"><span class="interruttore__pallina"></span></span>
+              <span class="interruttore__testo">
+                <strong>Dimmi se quest'auto è adatta a me</strong>
+                <small>Altezza, peso, dove la usi: serve a capire se ci starai comodo e se motore e cambio hanno senso per te. Facoltativo.</small>
+              </span>
+            </label>
+          </div>
+
           <div class="extra-auto" id="extraAuto">
             <div class="extra-auto__interno">
               <div class="campi-griglia">
                 <label class="campo campo--input">
                   <span class="campo__etichetta">La tua altezza <em>(cm)</em></span>
                   <input type="number" id="inputAltezza" min="120" max="230" step="1" placeholder="es. 186" inputmode="numeric" />
+                </label>
+
+                <label class="campo campo--input">
+                  <span class="campo__etichetta">Il tuo peso <em>(kg)</em></span>
+                  <input type="number" id="inputPeso" min="30" max="250" step="1" placeholder="es. 82" inputmode="numeric" />
                 </label>
 
                 <label class="campo campo--input">

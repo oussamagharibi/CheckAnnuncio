@@ -675,6 +675,102 @@ input[type='number']::-webkit-inner-spin-button {
   margin-bottom: 0;
 }
 
+/* interruttore "adatta a me" */
+
+.zona-profilo {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px dashed var(--bordo);
+}
+
+.interruttore {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  cursor: pointer;
+  padding: 13px 15px;
+  border-radius: 15px;
+  border: 1px solid var(--bordo);
+  background: var(--superficie);
+  transition: border-color var(--transizione), background var(--transizione);
+}
+
+.interruttore:hover {
+  border-color: var(--bordo-forte);
+  background: var(--superficie-alta);
+}
+
+.interruttore input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.interruttore__pista {
+  flex: none;
+  position: relative;
+  width: 46px;
+  height: 26px;
+  margin-top: 2px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--bordo-forte);
+  transition: background var(--transizione), border-color var(--transizione),
+    box-shadow var(--transizione);
+}
+
+.interruttore__pallina {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--testo-tenue);
+  transition: transform var(--transizione), background var(--transizione);
+}
+
+.interruttore input:checked + .interruttore__pista {
+  background: rgba(46, 230, 168, 0.28);
+  border-color: var(--verde);
+  box-shadow: 0 0 18px -6px rgba(46, 230, 168, 0.9);
+}
+
+.interruttore input:checked + .interruttore__pista .interruttore__pallina {
+  transform: translateX(20px);
+  background: var(--verde);
+}
+
+.interruttore input:focus-visible + .interruttore__pista {
+  outline: 2px solid var(--verde);
+  outline-offset: 3px;
+}
+
+.interruttore__testo {
+  display: block;
+  min-width: 0;
+}
+
+.interruttore__testo strong {
+  display: block;
+  font-size: 0.94rem;
+  font-weight: 600;
+  color: var(--testo);
+}
+
+.interruttore__testo small {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.81rem;
+  line-height: 1.5;
+  color: var(--testo-fioco);
+}
+
+.interruttore input:checked ~ .interruttore__testo strong {
+  color: #b8ffe6;
+}
+
 /* extra auto: apertura animata */
 
 .extra-auto {

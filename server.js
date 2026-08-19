@@ -35,8 +35,16 @@ const TIPI_IMMAGINE_AMMESSI = ['image/jpeg', 'image/png', 'image/webp'];
 const LIMITE_ANALISI_GIORNALIERE = 10;
 const TENTATIVI_JSON = 3; // 1 tentativo + 2 retry se il JSON non è valido
 const MAX_ITERAZIONI_TOOL = 4; // giri di "pause_turn" concessi al web fetch
-const MAX_TOKEN_PAGINA = 40000; // tetto al contenuto scaricato da una pagina
+const MAX_TOKEN_PAGINA = 12000; // tetto al contenuto scaricato da una pagina
 const MARCATORE_PAGINA_KO = 'PAGINA_NON_LEGGIBILE';
+
+// Listino claude-sonnet-4-6, dollari per milione di token.
+const PREZZI_USD_PER_MILIONE = {
+  input: 3.0,
+  output: 15.0,
+  letturaCache: 0.3,
+  scritturaCache: 3.75
+};
 
 const app = express();
 
@@ -131,9 +139,12 @@ Se il materiale non basta per giudicare un aspetto, dillo apertamente invece di 
 ### 2. VALUTAZIONE DI COERENZA
 Prezzo, chilometraggio, anno, stato dichiarato e accessori: tornano tra loro? Il prezzo è in linea con il mercato italiano dell'usato per quel modello? Segnala esplicitamente ciò che non quadra e ciò che invece è ragionevole.
 
-### 3. INCROCIO CON IL PROFILO UTENTE (solo per la categoria "auto")
-Se l'utente ha compilato il profilo, valuta se QUELL'auto è adatta a LUI e includi questi giudizi tra i dettagli della valutazione:
-- altezza: oltre ~185 cm servono abitabilità e seduta alta (SUV/crossover/monovolume), attenzione a coupé e citycar basse; sotto ~165 cm attenzione a soglie e visibilità
+### 3. INCROCIO CON IL PROFILO UTENTE (solo per la categoria "auto", solo se richiesto)
+Questa sezione vale SOLO se il messaggio dell'utente contiene un profilo compilato. Se il profilo non c'è, salta del tutto questa parte: niente consigli su altezza, peso o adeguatezza personale, nemmeno accennati.
+Quando il profilo c'è, valuta se QUELL'auto è adatta a LUI e includi questi giudizi tra i dettagli della valutazione. Usa solo i dati effettivamente indicati: se un campo è "non indicato", ignoralo invece di ipotizzarlo.
+- altezza: oltre ~185 cm servono abitabilità e seduta alta (SUV/crossover/monovolume), attenzione a coupé e citycar basse, e al tetto panoramico che ruba spazio in testa; sotto ~165 cm attenzione a soglie, visibilità e regolazione in altezza del sedile
+- peso: oltre ~100 kg conta il supporto del sedile (meglio sedili ampi con regolazione elettrica e lombare), l'accesso a bordo su auto molto basse, e la portata utile se viaggia con più passeggeri o carico; sotto ~55 kg attenzione alla posizione di guida su auto grandi (distanza dai pedali, visibilità)
+- altezza e peso insieme: se entrambi sono elevati, evita segmenti A/B e coupé, e privilegia auto con passo lungo e porte ampie
 - zona: città = auto compatta, cambio automatico, motore benzina/ibrido (il diesel in città con pochi km si intasa: FAP/DPF); montagna = trazione integrale o buone gomme, coppia sufficiente; campagna/tanti km extraurbani = diesel o ibrido efficiente ancora sensato
 - km annui previsti: sotto ~12.000 km/anno il diesel è quasi sempre la scelta sbagliata; sopra ~20.000 km/anno benzina puro diventa costoso
 - budget: l'annuncio rientra nel budget? Ricorda i costi accessori (passaggio di proprietà, assicurazione, bollo, tagliando, gomme)
@@ -186,15 +197,25 @@ function costruisciPromptUtente(dati) {
   righe.push('');
   righe.push(`Categoria dichiarata dall'utente: ${dati.categoria}`);
 
-  if (dati.categoria === 'auto') {
-    const p = dati.profilo || {};
+  const p = dati.profilo || {};
+  const profiloCompilato = dati.categoria === 'auto' && Object.keys(p).length > 0;
+
+  if (profiloCompilato) {
     righe.push('');
-    righe.push("Profilo dell'utente (usalo per i consigli sull'auto):");
+    righe.push(
+      "L'utente ha chiesto esplicitamente di sapere se quest'auto è adatta a lui. Profilo (usa solo i dati indicati, non inventare quelli mancanti):"
+    );
     righe.push(`- Altezza: ${p.altezza ? p.altezza + ' cm' : 'non indicata'}`);
+    righe.push(`- Peso: ${p.peso ? p.peso + ' kg' : 'non indicato'}`);
     righe.push(`- Zona di utilizzo prevalente: ${p.zona || 'non indicata'}`);
     righe.push(`- Km annui previsti: ${p.kmAnnui ? p.kmAnnui + ' km/anno' : 'non indicati'}`);
     righe.push(`- Budget massimo: ${p.budget ? p.budget + ' €' : 'non indicato'}`);
     righe.push(`- Neopatentato: ${p.neopatentato === true ? 'sì' : p.neopatentato === false ? 'no' : 'non indicato'}`);
+  } else if (dati.categoria === 'auto') {
+    righe.push('');
+    righe.push(
+      "L'utente NON ha chiesto la valutazione personalizzata: non inserire consigli su altezza, peso, zona di utilizzo o adeguatezza personale. Concentrati su rischio truffa, prezzo e coerenza dei dati."
+    );
   }
 
   if (dati.link) {
@@ -358,6 +379,9 @@ function validaRichiesta(corpo) {
     const p = corpo.profilo;
     const altezza = Number(p.altezza);
     if (Number.isFinite(altezza) && altezza >= 120 && altezza <= 230) profilo.altezza = Math.round(altezza);
+
+    const peso = Number(p.peso);
+    if (Number.isFinite(peso) && peso >= 30 && peso <= 250) profilo.peso = Math.round(peso);
 
     if (typeof p.zona === 'string' && ZONE.includes(p.zona.toLowerCase())) {
       profilo.zona = { citta: 'città', montagna: 'montagna', campagna: 'campagna' }[p.zona.toLowerCase()];
@@ -562,6 +586,43 @@ function erroreLinkNonLeggibile(codice) {
   return errore;
 }
 
+// ---------------------------------------------------------------------------
+// Contabilità dei token
+// ---------------------------------------------------------------------------
+
+function nuovoConsumo() {
+  return { chiamate: 0, input: 0, output: 0, letturaCache: 0, scritturaCache: 0 };
+}
+
+function sommaConsumo(consumo, usage) {
+  if (!usage) return;
+  consumo.chiamate += 1;
+  consumo.input += usage.input_tokens || 0;
+  consumo.output += usage.output_tokens || 0;
+  consumo.letturaCache += usage.cache_read_input_tokens || 0;
+  consumo.scritturaCache += usage.cache_creation_input_tokens || 0;
+}
+
+function costoUsd(consumo) {
+  const p = PREZZI_USD_PER_MILIONE;
+  return (
+    (consumo.input * p.input +
+      consumo.output * p.output +
+      consumo.letturaCache * p.letturaCache +
+      consumo.scritturaCache * p.scritturaCache) /
+    1e6
+  );
+}
+
+function registraConsumo(consumo, canale) {
+  const costo = costoUsd(consumo);
+  console.log(
+    `[costo] ${canale} — $${costo.toFixed(4)} | in ${consumo.input} · out ${consumo.output} · ` +
+      `cache r/w ${consumo.letturaCache}/${consumo.scritturaCache} | ${consumo.chiamate} chiamata/e`
+  );
+  return costo;
+}
+
 /** Blocchi di testo della risposta: prima l'ultimo da solo, poi tutti uniti. */
 function candidatiTesto(risposta) {
   const blocchi = risposta.content
@@ -590,7 +651,7 @@ function primoJsonValido(risposta) {
  * Esegue un turno, riprendendo automaticamente i "pause_turn" del web fetch.
  * Registra in `esitoFetch` come è andato lo scaricamento della pagina.
  */
-async function eseguiTurno(messaggi, strumenti, esitoFetch) {
+async function eseguiTurno(messaggi, strumenti, esitoFetch, consumo) {
   for (let iterazione = 1; ; iterazione++) {
     const richiesta = {
       model: MODELLO,
@@ -603,6 +664,7 @@ async function eseguiTurno(messaggi, strumenti, esitoFetch) {
     if (strumenti) richiesta.tools = strumenti;
 
     const risposta = await client.messages.create(richiesta);
+    sommaConsumo(consumo, risposta.usage);
 
     for (const blocco of risposta.content) {
       if (blocco.type !== 'web_fetch_tool_result') continue;
@@ -624,7 +686,7 @@ async function eseguiTurno(messaggi, strumenti, esitoFetch) {
   }
 }
 
-async function analizzaConAI(dati) {
+async function analizzaConAI(dati, consumo) {
   const messaggi = [{ role: 'user', content: costruisciContenutoUtente(dati) }];
   const esitoFetch = { tentato: false, riuscito: false, codiceErrore: null };
   const strumenti = dati.link
@@ -642,7 +704,7 @@ async function analizzaConAI(dati) {
   let ultimoErrore = null;
 
   for (let tentativo = 1; tentativo <= TENTATIVI_JSON; tentativo++) {
-    const risposta = await eseguiTurno(messaggi, strumenti, esitoFetch);
+    const risposta = await eseguiTurno(messaggi, strumenti, esitoFetch, consumo);
 
     if (risposta.stop_reason === 'refusal') {
       throw new ErroreUtente(
@@ -748,8 +810,11 @@ app.post('/api/analizza', async (req, res) => {
     throw errore;
   }
 
+  const consumo = nuovoConsumo();
+  const canale = dati.link ? 'link' : dati.immagine ? 'screenshot' : 'testo';
+
   try {
-    const analisi = await analizzaConAI(dati);
+    const analisi = await analizzaConAI(dati, consumo);
     registraAnalisi(ip);
     return res.json({ ...analisi, analisiRimaste: analisiRimaste(ip) });
   } catch (errore) {
@@ -803,6 +868,9 @@ app.post('/api/analizza', async (req, res) => {
       errore: 'errore_interno',
       messaggio: 'Qualcosa è andato storto durante l\'analisi. Riprova tra qualche istante.'
     });
+  } finally {
+    // Anche le analisi fallite consumano token: vanno contate.
+    if (consumo.chiamate > 0) registraConsumo(consumo, canale);
   }
 });
 

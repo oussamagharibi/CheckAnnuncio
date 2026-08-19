@@ -39,6 +39,8 @@
   var inputTesto = $('inputTesto');
   var contatoreTesto = $('contatoreTesto');
   var extraAuto = $('extraAuto');
+  var zonaProfilo = $('zonaProfilo');
+  var flagProfilo = $('flagProfilo');
   var bottoneAnalizza = $('bottoneAnalizza');
   var avvisoErrore = $('avvisoErrore');
   var testoErrore = $('testoErrore');
@@ -278,15 +280,33 @@
     });
   }
 
+  // L'interruttore compare solo per le auto; i campi solo se l'utente lo attiva.
+  function aggiornaZonaProfilo() {
+    var eAuto = stato.categoria === 'auto';
+    zonaProfilo.hidden = !eAuto;
+    extraAuto.classList.toggle('aperto', eAuto && flagProfilo.checked);
+  }
+
   collegaChip(
     'gruppoCategoria',
     function (valore) {
       stato.categoria = valore || 'auto';
-      extraAuto.classList.toggle('aperto', stato.categoria === 'auto');
+      aggiornaZonaProfilo();
       nascondiErrore();
     },
     true
   );
+
+  flagProfilo.addEventListener('change', function () {
+    aggiornaZonaProfilo();
+    if (flagProfilo.checked) {
+      // Lascia finire l'animazione di apertura prima di portare i campi in vista.
+      setTimeout(function () {
+        var y = extraAuto.getBoundingClientRect().bottom + window.pageYOffset;
+        if (y > window.pageYOffset + window.innerHeight) scrollA(extraAuto);
+      }, 420);
+    }
+  });
 
   collegaChip('gruppoZona', function (valore) {
     stato.zona = valore;
@@ -296,8 +316,9 @@
     stato.neopatentato = valore === null ? null : valore === 'si';
   });
 
-  // La categoria di default è "auto": apriamo subito i campi extra.
-  extraAuto.classList.add('aperto');
+  // Categoria di default "auto": mostra l'interruttore, ma i campi restano chiusi
+  // finché l'utente non chiede la valutazione personalizzata.
+  aggiornaZonaProfilo();
 
   // ---------------------------------------------------------------
   // Loader con frasi che ruotano
@@ -590,9 +611,11 @@
     var link = inputLink.value.trim();
     if (link) corpo.link = link;
 
-    if (stato.categoria === 'auto') {
+    // Il profilo parte solo se l'utente ha chiesto la valutazione personalizzata.
+    if (stato.categoria === 'auto' && flagProfilo.checked) {
       corpo.profilo = {
         altezza: numeroValido($('inputAltezza')),
+        peso: numeroValido($('inputPeso')),
         zona: stato.zona,
         kmAnnui: numeroValido($('inputKm')),
         budget: numeroValido($('inputBudget')),
