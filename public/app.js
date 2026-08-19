@@ -42,6 +42,8 @@
   var inputTesto = $('inputTesto');
   var contatoreTesto = $('contatoreTesto');
   var extraAuto = $('extraAuto');
+  var extraAltro = $('extraAltro');
+  var inputOggetto = $('inputOggetto');
   var zonaProfilo = $('zonaProfilo');
   var flagProfilo = $('flagProfilo');
   var bottoneAnalizza = $('bottoneAnalizza');
@@ -392,25 +394,33 @@
     });
   }
 
-  // L'interruttore compare solo per le auto; i campi solo se l'utente lo attiva.
-  function aggiornaZonaProfilo() {
+  // Campi che dipendono dalla categoria scelta:
+  // - "auto": interruttore del profilo, e i campi solo se l'utente lo attiva
+  // - "altro": campo libero per dire di che oggetto si tratta
+  function aggiornaCampiCategoria() {
     var eAuto = stato.categoria === 'auto';
     zonaProfilo.hidden = !eAuto;
     extraAuto.classList.toggle('aperto', eAuto && flagProfilo.checked);
+    extraAltro.classList.toggle('aperto', stato.categoria === 'altro');
   }
 
   collegaChip(
     'gruppoCategoria',
     function (valore) {
       stato.categoria = valore || 'auto';
-      aggiornaZonaProfilo();
+      aggiornaCampiCategoria();
       nascondiErrore();
+      if (stato.categoria === 'altro') {
+        setTimeout(function () {
+          inputOggetto.focus();
+        }, 380);
+      }
     },
     true
   );
 
   flagProfilo.addEventListener('change', function () {
-    aggiornaZonaProfilo();
+    aggiornaCampiCategoria();
     if (flagProfilo.checked) {
       // Lascia finire l'animazione di apertura prima di portare i campi in vista.
       setTimeout(function () {
@@ -430,7 +440,7 @@
 
   // Categoria di default "auto": mostra l'interruttore, ma i campi restano chiusi
   // finché l'utente non chiede la valutazione personalizzata.
-  aggiornaZonaProfilo();
+  aggiornaCampiCategoria();
 
   // ---------------------------------------------------------------
   // Loader con frasi che ruotano
@@ -726,6 +736,9 @@
 
     var link = inputLink.value.trim();
     if (link) corpo.link = link;
+
+    var oggetto = inputOggetto.value.trim();
+    if (stato.categoria === 'altro' && oggetto) corpo.oggetto = oggetto;
 
     // Il profilo parte solo se l'utente ha chiesto la valutazione personalizzata.
     if (stato.categoria === 'auto' && flagProfilo.checked) {

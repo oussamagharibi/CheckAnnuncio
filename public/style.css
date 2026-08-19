@@ -603,7 +603,8 @@ main {
 
 textarea,
 input[type='number'],
-input[type='url'] {
+input[type='url'],
+input[type='text'] {
   width: 100%;
   background: rgba(0, 0, 0, 0.3);
   border: 1px solid var(--bordo);
@@ -621,7 +622,8 @@ input::placeholder {
 
 textarea:focus,
 input[type='number']:focus,
-input[type='url']:focus {
+input[type='url']:focus,
+input[type='text']:focus {
   outline: none;
   border-color: rgba(46, 230, 168, 0.55);
   box-shadow: 0 0 0 4px rgba(46, 230, 168, 0.1);
@@ -829,9 +831,9 @@ input[type='number']::-webkit-inner-spin-button {
   color: #b8ffe6;
 }
 
-/* extra auto: apertura animata */
+/* blocco a scomparsa: apertura animata (campi auto, campo "altro") */
 
-.extra-auto {
+.espandibile {
   display: grid;
   grid-template-rows: 0fr;
   opacity: 0;
@@ -840,18 +842,18 @@ input[type='number']::-webkit-inner-spin-button {
   margin-top: 0;
 }
 
-.extra-auto__interno {
+.espandibile__interno {
   overflow: hidden;
   min-height: 0;
 }
 
-.extra-auto.aperto {
+.espandibile.aperto {
   grid-template-rows: 1fr;
   opacity: 1;
   margin-top: 20px;
 }
 
-.extra-auto.aperto .extra-auto__interno {
+.espandibile.aperto .espandibile__interno {
   padding-top: 20px;
   border-top: 1px dashed var(--bordo);
 }

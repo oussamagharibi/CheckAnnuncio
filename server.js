@@ -33,6 +33,7 @@ const MAX_IMMAGINI = 4; // foto per analisi
 const MAX_IMMAGINE_BYTE = 5 * 1024 * 1024; // 5 MB per foto
 const MAX_TOTALE_IMMAGINI_BYTE = 12 * 1024 * 1024; // 12 MB per richiesta
 const MAX_TESTO_CARATTERI = 8000;
+const MAX_OGGETTO_CARATTERI = 200;
 const TIPI_IMMAGINE_AMMESSI = ['image/jpeg', 'image/png', 'image/webp'];
 const LIMITE_ANALISI_GIORNALIERE = 10;
 const TENTATIVI_JSON = 3; // 1 tentativo + 2 retry se il JSON non è valido
@@ -136,6 +137,7 @@ Cerca attivamente questi segnali (e menziona SOLO quelli che vedi davvero nel ma
 - documenti mancanti o "in arrivo", storia dell'oggetto poco credibile
 - per i telefoni: possibile blocco iCloud/Google, IMEI non fornito, prezzo da top di gamma nuovo a metà valore
 - per le auto: km incoerenti con anno/usura, "unico proprietario" non verificabile, revisione/bollo non citati, auto "in permuta per conto di un amico"
+- per gli altri oggetti (elettronica, bici, elettrodomestici, mobili, strumenti musicali, attrezzi): numero di seriale, scontrino o garanzia mai citati; nessuna foto dei segni d'uso reali; "ancora imballato / mai usato" a prezzo da usato; accessori originali non mostrati; impossibilità di provarlo acceso prima di pagare; per la bici, assenza del numero di telaio (spesso è refurtiva)
 Se il materiale non basta per giudicare un aspetto, dillo apertamente invece di inventare.
 
 ### 2. VALUTAZIONE DI COERENZA
@@ -198,6 +200,13 @@ function costruisciPromptUtente(dati) {
   righe.push('Analizza questo annuncio.');
   righe.push('');
   righe.push(`Categoria dichiarata dall'utente: ${dati.categoria}`);
+
+  if (dati.oggetto) {
+    righe.push(`Cosa sta comprando, secondo l'utente: ${dati.oggetto}`);
+    righe.push(
+      "Usa questa indicazione per capire il valore di mercato di QUEL prodotto e per formulare domande su misura. Se però l'annuncio mostra chiaramente un oggetto diverso da quello che l'utente pensa di comprare, segnalalo: è già di per sé un campanello d'allarme."
+    );
+  }
 
   const p = dati.profilo || {};
   const profiloCompilato = dati.categoria === 'auto' && Object.keys(p).length > 0;
@@ -425,6 +434,12 @@ function validaRichiesta(corpo) {
     testo = testo.slice(0, MAX_TESTO_CARATTERI);
   }
 
+  // Cosa sta comprando, scritto dall'utente (usato soprattutto per "altro").
+  let oggetto = typeof corpo.oggetto === 'string' ? corpo.oggetto.replace(/\s+/g, ' ').trim() : '';
+  if (oggetto.length > MAX_OGGETTO_CARATTERI) {
+    oggetto = oggetto.slice(0, MAX_OGGETTO_CARATTERI);
+  }
+
   const immagini = validaImmagini(corpo);
   const link = validaLink(corpo.link);
 
@@ -459,6 +474,7 @@ function validaRichiesta(corpo) {
 
   return {
     categoria,
+    oggetto,
     testo,
     immagini,
     profilo,

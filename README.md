@@ -153,6 +153,7 @@ Body JSON (serve **almeno uno** tra `immagine`, `link` e `testo`):
 | Campo               | Tipo    | Note                                                                 |
 | ------------------- | ------- | -------------------------------------------------------------------- |
 | `categoria`         | string  | **obbligatorio** — `auto` \| `telefono` \| `altro`                    |
+| `oggetto`           | string  | cosa sta comprando, max 200 caratteri; nel sito compare scegliendo *Altro* |
 | `link`              | string  | URL dell'annuncio (http/https, max 2000 caratteri); lo schema può essere omesso |
 | `immagine`          | string  | una sola foto, retrocompatibile — equivale a `immagini` con un elemento |
 | `tipoImmagine`      | string  | opzionale, se `immagine` è base64 puro senza prefisso data URL        |
@@ -203,6 +204,23 @@ Errori (sempre con un messaggio in italiano pronto da mostrare all'utente):
 ### `GET /api/stato`
 
 Restituisce `{ ok, configurato, limiteGiornaliero, analisiRimaste }` per l'IP chiamante.
+
+---
+
+## Categoria "Altro": di che oggetto si tratta
+
+Scegliendo **Altro** si apre un campo libero — *"Che oggetto è?"*, max 200 caratteri — dove l'utente scrive modello e versione (`PlayStation 5 Slim 1TB`, `Bianchi Oltre XR4 Ultegra Di2`, `MacBook Air M2`). È facoltativo, ma cambia parecchio il risultato: senza, l'AI conosce il prezzo di mercato solo di quello che riesce a dedurre dall'annuncio.
+
+Il prompt fa due cose con questo dato: valuta il prezzo di mercato di **quel** prodotto, e segnala se l'annuncio mostra un oggetto **diverso** da quello che l'utente pensa di comprare — un campanello d'allarme di per sé.
+
+Verificato sullo stesso annuncio (bici in carbonio a 450 €, pagamento PostePay, niente fattura):
+
+| | Risultato |
+| --- | --- |
+| Senza `oggetto` | Rischio 9/10, domande corrette ma generiche: *«come mai vendi a 450 € una bici in carbonio nuova?»* |
+| Con `oggetto: "Bianchi Oltre XR4 Ultegra Di2"` | Rischio 9/10, ma il verdetto diventa: *«450 € per una Bianchi Oltre XR4 Ultegra Di2 è fuori da qualsiasi logica di mercato. L'annuncio non menziona nemmeno il brand: potresti pagare per una bici completamente diversa da quella che cerchi»* |
+
+Nel prompt di sistema c'è anche una lista di segnali specifica per gli oggetti generici: seriale/scontrino/garanzia mai citati, nessuna foto dei segni d'uso, "ancora imballato" a prezzo da usato, impossibilità di provarlo acceso, numero di telaio assente sulle bici (spesso refurtiva).
 
 ---
 
