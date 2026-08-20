@@ -335,6 +335,48 @@
           </button>
         </article>
 
+        <!-- Card 5: conversazione di approfondimento -->
+        <article class="scheda scheda--risultato" id="cardChat" style="--ritardo: 480ms">
+          <header class="scheda__testata scheda__testata--risultato">
+            <span class="scheda__icona" aria-hidden="true">💭</span>
+            <h3>Chiedi ancora</h3>
+          </header>
+          <p class="scheda__intro">
+            Il venditore ti ha risposto? Hai notato un dettaglio che nelle foto non c'era? Scrivilo qui:
+            continuo da dove siamo rimasti, senza rifare tutto da capo.
+          </p>
+
+          <div class="chat" id="chat" role="log" aria-live="polite"></div>
+
+          <div class="suggerimenti" id="suggerimenti">
+            <button type="button" class="suggerimento" data-testo="Il venditore mi ha risposto che ">
+              Il venditore mi ha risposto…
+            </button>
+            <button type="button" class="suggerimento" data-testo="Ho visto l'auto dal vivo e ">
+              L'ho vista dal vivo…
+            </button>
+            <button type="button" class="suggerimento" data-testo="Quanto dovrei offrire per trattare il prezzo?">
+              Quanto posso offrire?
+            </button>
+          </div>
+
+          <form class="chat-invio" id="formChat">
+            <textarea
+              id="inputDomanda"
+              rows="2"
+              maxlength="600"
+              placeholder="Scrivi qui la tua domanda o quello che hai scoperto…"
+            ></textarea>
+            <button type="submit" class="chat-invia" id="bottoneDomanda" aria-label="Invia la domanda">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4.5 12h13" /><path d="m12 5.5 6.5 6.5L12 18.5" />
+              </svg>
+            </button>
+          </form>
+
+          <p class="chat-nota" id="notaChat"></p>
+        </article>
+
         <div class="ricomincia">
           <button type="button" class="bottone bottone--fantasma" id="nuovaAnalisi">
             Analizza un altro annuncio

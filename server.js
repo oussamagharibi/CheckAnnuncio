@@ -29,13 +29,17 @@ const APIConnectionError = Anthropic.APIConnectionError || SDK.APIConnectionErro
 
 const PORT = process.env.PORT || 3000;
 const MODELLO = 'claude-sonnet-4-6';
+// Le domande di approfondimento sono conversazione breve su un'analisi gia' fatta:
+// Haiku regge il compito a un terzo del prezzo e in meta' tempo. L'analisi vera
+// resta su Sonnet, dove il ragionamento serve davvero.
+const MODELLO_CHAT = process.env.MODELLO_CHAT || 'claude-haiku-4-5-20251001';
 const MAX_IMMAGINI = 4; // foto per analisi
 const MAX_IMMAGINE_BYTE = 5 * 1024 * 1024; // 5 MB per foto
 const MAX_TOTALE_IMMAGINI_BYTE = 12 * 1024 * 1024; // 12 MB per richiesta
 const MAX_TESTO_CARATTERI = 8000;
 const MAX_OGGETTO_CARATTERI = 200;
 const TIPI_IMMAGINE_AMMESSI = ['image/jpeg', 'image/png', 'image/webp'];
-const LIMITE_ANALISI_GIORNALIERE = 10;
+const LIMITE_ANALISI_GIORNALIERE = 5;
 const TENTATIVI_JSON = 3; // 1 tentativo + 2 retry se il JSON non è valido
 const MAX_ITERAZIONI_TOOL = 4; // giri di "pause_turn" concessi al web fetch
 const MAX_TOKEN_PAGINA = 12000; // tetto al contenuto scaricato da una pagina
@@ -46,15 +50,23 @@ const MARCATORE_PAGINA_KO = 'PAGINA_NON_LEGGIBILE';
 // troncata, facendo scattare un retry che raddoppiava di nuovo l'attesa.
 // Con "low" la stessa analisi esce in ~62 s senza perdere dettagli.
 const SFORZO = process.env.SFORZO_AI || 'low'; // low | medium | high
+const MAX_DOMANDE_SEGUITO = 4; // botta e risposta dopo l'analisi
+const MAX_DOMANDA_CARATTERI = 600;
+const MAX_TOKEN_CHAT = 1500;
+const SESSIONE_TTL_MS = 20 * 60 * 1000;
+const MAX_SESSIONI = 30;
+const MAX_BYTE_SESSIONI = 150 * 1024 * 1024;
 const MAX_TOKEN_RISPOSTA = 16000;
 
-// Listino claude-sonnet-4-6, dollari per milione di token.
-const PREZZI_USD_PER_MILIONE = {
-  input: 3.0,
-  output: 15.0,
-  letturaCache: 0.3,
-  scritturaCache: 3.75
+// Listini in dollari per milione di token, per modello.
+const LISTINI = {
+  'claude-sonnet-4-6': { input: 3.0, output: 15.0, letturaCache: 0.3, scritturaCache: 3.75 },
+  'claude-haiku-4-5-20251001': { input: 1.0, output: 5.0, letturaCache: 0.1, scritturaCache: 1.25 }
 };
+
+function listino(modello) {
+  return LISTINI[modello] || LISTINI[MODELLO];
+}
 
 const app = express();
 
@@ -120,6 +132,97 @@ setInterval(() => {
     if (voce.giorno !== oggi) contatori.delete(ip);
   }
 }, 60 * 60 * 1000).unref();
+
+// ---------------------------------------------------------------------------
+// Sessioni di follow-up (in memoria, come il rate limit: si perdono al riavvio)
+// ---------------------------------------------------------------------------
+
+const crypto = require('crypto');
+
+/**
+ * @type {Map<string, {ip: string, creata: number, ultimoUso: number, byte: number,
+ *                     messaggi: Array, domandeUsate: number}>}
+ *
+ * Teniamo qui anche le foto, perché una domanda di approfondimento spesso chiede
+ * di riguardarle ("cosa c'è scritto nella terza?"). Sono l'unica cosa pesante in
+ * memoria, quindi la mappa è limitata su tre fronti: scadenza, numero di sessioni
+ * e byte totali.
+ */
+const sessioni = new Map();
+
+function byteDelleImmagini(dati) {
+  return (dati.immagini || []).reduce((somma, i) => somma + (i.byte || i.dati.length), 0);
+}
+
+function potaSessioni() {
+  const ora = Date.now();
+
+  for (const [id, s] of sessioni) {
+    if (ora - s.ultimoUso > SESSIONE_TTL_MS) sessioni.delete(id);
+  }
+
+  const perEta = () => [...sessioni.entries()].sort((a, b) => a[1].ultimoUso - b[1].ultimoUso);
+
+  while (sessioni.size > MAX_SESSIONI) sessioni.delete(perEta()[0][0]);
+
+  let totale = 0;
+  for (const s of sessioni.values()) totale += s.byte;
+  while (totale > MAX_BYTE_SESSIONI && sessioni.size > 0) {
+    const [id, s] = perEta()[0];
+    totale -= s.byte;
+    sessioni.delete(id);
+  }
+}
+
+function creaSessione(ip, dati, analisi) {
+  potaSessioni();
+  const id = crypto.randomUUID();
+  const ora = Date.now();
+  sessioni.set(id, {
+    ip,
+    creata: ora,
+    ultimoUso: ora,
+    byte: byteDelleImmagini(dati),
+    domandeUsate: 0,
+    messaggi: [
+      { role: 'user', content: costruisciContenutoUtente(dati) },
+      { role: 'assistant', content: JSON.stringify(analisi) }
+    ]
+  });
+  return id;
+}
+
+/** Recupera una sessione valida, o lancia l'errore giusto da mostrare all'utente. */
+function prendiSessione(id, ip) {
+  if (typeof id !== 'string' || !id) {
+    throw new ErroreUtente('sessione_mancante', 'Analizza prima un annuncio, poi potrai fare domande.');
+  }
+
+  const sessione = sessioni.get(id);
+  if (!sessione || Date.now() - sessione.ultimoUso > SESSIONE_TTL_MS) {
+    sessioni.delete(id);
+    throw new ErroreUtente(
+      'sessione_scaduta',
+      "La conversazione è scaduta (restano attive 20 minuti). Rifai l'analisi per ripartire."
+    );
+  }
+
+  // La sessione è legata all'IP che l'ha creata: un id rubato non basta a usarla.
+  if (sessione.ip !== ip) {
+    throw new ErroreUtente('sessione_scaduta', "Questa conversazione non è più disponibile. Rifai l'analisi.");
+  }
+
+  if (sessione.domandeUsate >= MAX_DOMANDE_SEGUITO) {
+    throw new ErroreUtente(
+      'domande_esaurite',
+      `Hai usato tutte le ${MAX_DOMANDE_SEGUITO} domande di approfondimento. Per ripartire, lancia una nuova analisi.`
+    );
+  }
+
+  return sessione;
+}
+
+setInterval(potaSessioni, 5 * 60 * 1000).unref();
 
 // ---------------------------------------------------------------------------
 // Prompt
@@ -238,13 +341,15 @@ Rispondi ESCLUSIVAMENTE con un oggetto JSON valido, senza testo prima o dopo, se
 }
 
 Regole rigide:
-- "segnali": da 3 a 7 elementi. Usa "verde" anche per gli elementi rassicuranti, così l'utente vede un quadro equilibrato.
-- "dettagli": da 3 a 8 elementi. Per la categoria "auto" con profilo compilato, almeno 2 devono riguardare l'adeguatezza al profilo dell'utente.
-- "affidabilita.problemi": da 3 a 6 elementi per la categoria "auto". Devono riguardare QUELLA motorizzazione, non l'automobile in generale: "controlla i freni" non è un punto debole noto. Per "telefono" e "altro" l'elenco può essere vuoto.
+- "segnali": da 3 a 5 elementi. Usa "verde" anche per gli elementi rassicuranti, così l'utente vede un quadro equilibrato.
+- "dettagli": da 3 a 5 elementi. Per la categoria "auto" con profilo compilato, almeno 2 devono riguardare l'adeguatezza al profilo dell'utente.
+- "affidabilita.problemi": da 3 a 4 elementi per la categoria "auto". Devono riguardare QUELLA motorizzazione, non l'automobile in generale: "controlla i freni" non è un punto debole noto. Per "telefono" e "altro" l'elenco può essere vuoto.
 - "affidabilita.verdetto": sempre presente, anche quando l'elenco dei problemi è vuoto.
-- "domande": da 5 a 7 stringhe, ognuna una singola domanda, senza numerazione iniziale.
+- "domande": esattamente 5 stringhe, ognuna una singola domanda, senza numerazione iniziale.
 - Nessun campo aggiuntivo, nessun campo mancante.
 - Tutto il testo in italiano, con il "tu".
+- BREVITÀ: ogni campo di testo al massimo 2 frasi. Vai al sodo, niente premesse né giri di parole.
+- NIENTE RIPETIZIONI fra sezioni: se un problema meccanico è già in "affidabilita", non ripeterlo in "valutazione.dettagli", e viceversa. Ogni frase deve aggiungere qualcosa che non hai già scritto altrove.
 - Se il materiale fornito è illeggibile o non è un annuncio di vendita, restituisci comunque il JSON: punteggio basso, un segnale di livello "giallo" che lo spiega, "affidabilita.problemi" vuoto, e domande generiche ma utili.`;
 
 const MESI = [
@@ -277,6 +382,22 @@ function dataDiOggi(adesso = new Date()) {
     stagione: stagioneDi(mese)
   };
 }
+
+const PROMPT_SISTEMA_CHAT = `Sei l'analista di "CheckAnnuncio". Hai appena consegnato all'utente l'analisi di un annuncio: la trovi nella conversazione, nel messaggio JSON che hai scritto tu. Le foto e il testo dell'annuncio sono ancora nella conversazione: puoi rileggerli.
+
+Ora l'utente ti fa una domanda di approfondimento, oppure ti dà un'informazione che nell'annuncio non c'era (cosa gli ha risposto il venditore, un difetto visto dal vivo, un documento mostrato).
+
+Come rispondere:
+- In italiano, con il "tu", in TESTO NORMALE. Mai in JSON, mai in blocchi di codice.
+- Breve: 2-5 frasi, o al massimo 3 punti elenco. L'utente sta leggendo dal telefono.
+- NON rifare l'analisi da capo e non ripetere ciò che hai già scritto: aggancia quanto detto e aggiungi solo ciò che è nuovo.
+- Se l'informazione che ti dà cambia il quadro, dillo subito e in modo esplicito: "questo alza il rischio da 3 a 6", "questo toglie il dubbio principale". Spiega in una riga perché.
+- Se ti chiede di riguardare una foto, guardala davvero e rispondi su ciò che vedi; se non è leggibile, dillo.
+- Se la risposta del venditore è evasiva o contraddice l'annuncio, fallo notare: è esattamente il segnale che le domande servivano a far emergere.
+- Se non lo sai o serve una verifica dal vivo, dillo invece di inventare.
+- Rispondi anche alle domande che allargano il campo: confronti con altri modelli, quanto offrire, se conviene aspettare, cosa controllare dal vivo. Fanno parte dell'aiuto all'acquisto. Rifiuta solo se la domanda non c'entra nulla con l'acquisto di questo oggetto.
+- Niente disclaimer, niente premesse: vai dritto al punto.
+- Testo semplice, senza markdown: niente **grassetto**, niente ##titoli, niente tabelle. Per un elenco usa un trattino a inizio riga.`;
 
 function costruisciPromptUtente(dati, adesso) {
   const righe = [];
@@ -799,8 +920,8 @@ function erroreLinkNonLeggibile(codice) {
 // Contabilità dei token
 // ---------------------------------------------------------------------------
 
-function nuovoConsumo() {
-  return { chiamate: 0, input: 0, output: 0, letturaCache: 0, scritturaCache: 0 };
+function nuovoConsumo(modello) {
+  return { modello: modello || MODELLO, chiamate: 0, input: 0, output: 0, letturaCache: 0, scritturaCache: 0 };
 }
 
 function sommaConsumo(consumo, usage) {
@@ -813,7 +934,7 @@ function sommaConsumo(consumo, usage) {
 }
 
 function costoUsd(consumo) {
-  const p = PREZZI_USD_PER_MILIONE;
+  const p = listino(consumo.modello);
   return (
     (consumo.input * p.input +
       consumo.output * p.output +
@@ -826,7 +947,7 @@ function costoUsd(consumo) {
 function registraConsumo(consumo, canale) {
   const costo = costoUsd(consumo);
   console.log(
-    `[costo] ${canale} — $${costo.toFixed(4)} | in ${consumo.input} · out ${consumo.output} · ` +
+    `[costo] ${canale} — ${costo.toFixed(4)} | in ${consumo.input} · out ${consumo.output} · ` +
       `cache r/w ${consumo.letturaCache}/${consumo.scritturaCache} | ${consumo.chiamate} chiamata/e`
   );
   return costo;
@@ -867,7 +988,11 @@ async function eseguiTurno(messaggi, strumenti, esitoFetch, consumo) {
       max_tokens: MAX_TOKEN_RISPOSTA,
       thinking: { type: 'adaptive' },
       output_config: { effort: SFORZO },
-      system: PROMPT_SISTEMA,
+      // Il prompt di sistema e' identico per tutti gli utenti: in cache resta
+      // caldo finche' arriva traffico, e ogni analisi successiva lo rilegge a un
+      // decimo del prezzo. A cache fredda si paga il 25% in piu' solo su questa
+      // parte: conviene gia' sopra un quinto di richieste ravvicinate.
+      system: [{ type: 'text', text: PROMPT_SISTEMA, cache_control: { type: 'ephemeral' } }],
       messages: messaggi
     };
     if (strumenti) richiesta.tools = strumenti;
@@ -1028,7 +1153,7 @@ app.post('/api/analizza', async (req, res) => {
     throw errore;
   }
 
-  const consumo = nuovoConsumo();
+  const consumo = nuovoConsumo(MODELLO);
   const canale = dati.link
     ? 'link'
     : dati.immagini.length > 0
@@ -1038,7 +1163,13 @@ app.post('/api/analizza', async (req, res) => {
   try {
     const analisi = await analizzaConAI(dati, consumo);
     registraAnalisi(ip);
-    return res.json({ ...analisi, analisiRimaste: analisiRimaste(ip) });
+    const sessione = creaSessione(ip, dati, analisi);
+    return res.json({
+      ...analisi,
+      analisiRimaste: analisiRimaste(ip),
+      sessione,
+      domandeRimaste: MAX_DOMANDE_SEGUITO
+    });
   } catch (errore) {
     if (errore instanceof ErroreUtente) {
       const stato = errore.codice === 'json_non_valido' ? 502 : 400;
@@ -1093,6 +1224,132 @@ app.post('/api/analizza', async (req, res) => {
   } finally {
     // Anche le analisi fallite consumano token: vanno contate.
     if (consumo.chiamate > 0) registraConsumo(consumo, canale);
+  }
+});
+
+app.post('/api/domanda', async (req, res) => {
+  const ip = chiaveIp(req);
+
+  if (!client) {
+    return res.status(503).json({
+      errore: 'chiave_mancante',
+      messaggio: 'Il servizio non è configurato: manca la chiave API.'
+    });
+  }
+
+  const corpo = req.body || {};
+  const domanda = typeof corpo.domanda === 'string' ? corpo.domanda.trim() : '';
+
+  if (domanda.length < 3) {
+    return res.status(400).json({
+      errore: 'domanda_vuota',
+      messaggio: "Scrivi la tua domanda o l'informazione da aggiungere."
+    });
+  }
+
+  let sessione;
+  try {
+    sessione = prendiSessione(corpo.sessione, ip);
+  } catch (errore) {
+    if (errore instanceof ErroreUtente) {
+      const stato = errore.codice === 'domande_esaurite' ? 429 : 410;
+      return res.status(stato).json({
+        errore: errore.codice,
+        messaggio: errore.message,
+        domandeRimaste: 0
+      });
+    }
+    throw errore;
+  }
+
+  const consumo = nuovoConsumo(MODELLO_CHAT);
+  // La conversazione va rimandata per intero a ogni domanda: l'API e' stateless.
+  // Marchiamo l'ultimo messaggio del prefisso perche' venga messo in cache.
+  // Nota: Haiku 4.5 mette in cache solo prefissi da 4096 token in su, e una
+  // conversazione di solo testo ne ha ~3000: li' il marcatore viene ignorato in
+  // silenzio, senza costi. Serve invece quando l'annuncio aveva delle foto,
+  // perche' ogni immagine porta il prefisso ben oltre la soglia.
+  const prefisso = sessione.messaggi.slice();
+  const ultimo = prefisso.length - 1;
+  prefisso[ultimo] = {
+    role: prefisso[ultimo].role,
+    content: [
+      {
+        type: 'text',
+        text: prefisso[ultimo].content,
+        cache_control: { type: 'ephemeral' }
+      }
+    ]
+  };
+
+  const messaggi = prefisso.concat([
+    { role: 'user', content: domanda.slice(0, MAX_DOMANDA_CARATTERI) }
+  ]);
+
+  try {
+    const richiestaChat = {
+      model: MODELLO_CHAT,
+      max_tokens: MAX_TOKEN_CHAT,
+      system: [{ type: 'text', text: PROMPT_SISTEMA_CHAT, cache_control: { type: 'ephemeral' } }],
+      messages: messaggi
+    };
+    // Haiku non supporta il thinking adattivo: lo attiviamo solo se qualcuno
+    // rimette un modello Sonnet con MODELLO_CHAT.
+    if (MODELLO_CHAT.indexOf('haiku') === -1) {
+      richiestaChat.thinking = { type: 'adaptive' };
+      richiestaChat.output_config = { effort: SFORZO };
+    }
+
+    const risposta = await client.messages.create(richiestaChat);
+    sommaConsumo(consumo, risposta.usage);
+
+    const testo = risposta.content
+      .filter((b) => b.type === 'text')
+      .map((b) => b.text)
+      .join("\n")
+      .trim();
+
+    if (!testo) {
+      return res.status(502).json({
+        errore: 'risposta_vuota',
+        messaggio: "L'AI non ha risposto. Riprova a riformulare la domanda."
+      });
+    }
+
+    // Solo ora la domanda viene contata: un errore non deve consumarla.
+    // In sessione teniamo la forma semplice: il prefisso marcato serve solo all'invio.
+    sessione.messaggi = sessione.messaggi.concat([
+      { role: 'user', content: domanda.slice(0, MAX_DOMANDA_CARATTERI) },
+      { role: 'assistant', content: testo }
+    ]);
+    sessione.domandeUsate += 1;
+    sessione.ultimoUso = Date.now();
+
+    return res.json({
+      risposta: testo,
+      domandeRimaste: MAX_DOMANDE_SEGUITO - sessione.domandeUsate
+    });
+  } catch (errore) {
+    if (RateLimitError && errore instanceof RateLimitError) {
+      return res.status(503).json({
+        errore: 'ai_sovraccarica',
+        messaggio: "Troppe richieste in questo momento. Riprova tra un minuto."
+      });
+    }
+    if (APIError && errore instanceof APIError) {
+      console.error(`[domanda] errore API ${errore.status}:`, errore.message);
+      return res.status(503).json({
+        errore: 'ai_non_disponibile',
+        messaggio: 'Il servizio non è raggiungibile in questo momento. Riprova tra poco.'
+      });
+    }
+    console.error('[domanda] errore inatteso:', errore);
+    return res.status(500).json({
+      errore: 'errore_interno',
+      messaggio: 'Qualcosa è andato storto. Riprova tra qualche istante.'
+    });
+  } finally {
+    if (consumo.chiamate > 0) registraConsumo(consumo, 'domanda');
   }
 });
 

@@ -16,7 +16,10 @@
     categoria: 'auto',
     zona: null,
     neopatentato: null,
-    inCorso: false
+    inCorso: false,
+    sessione: null,        // id della conversazione aperta dall'analisi
+    domandeRimaste: 0,
+    domandaInCorso: false
   };
 
   // ---------------------------------------------------------------
@@ -56,6 +59,13 @@
   var risultati = $('risultati');
   var zonaForm = $('zonaForm');
   var toast = $('toast');
+  var cardChat = $('cardChat');
+  var chat = $('chat');
+  var formChat = $('formChat');
+  var inputDomanda = $('inputDomanda');
+  var bottoneDomanda = $('bottoneDomanda');
+  var notaChat = $('notaChat');
+  var suggerimenti = $('suggerimenti');
 
   // ---------------------------------------------------------------
   // Utility
@@ -728,11 +738,158 @@
     };
   }
 
+  // ---------------------------------------------------------------
+  // Conversazione di approfondimento
+  // ---------------------------------------------------------------
+
+  // Il prompt chiede testo semplice, ma se un asterisco sfugge lo togliamo qui:
+  // le bolle usano textContent, quindi il markdown si vedrebbe grezzo.
+  function ripulisci(testo) {
+    return String(testo)
+      .replace(/\*\*(.+?)\*\*/g, '$1')
+      .replace(/(^|\s)\*(\S[^*]*?)\*(?=[\s.,:;!?)]|$)/g, '$1$2')
+      .replace(/^#{1,6}\s+/gm, '')
+      .replace(/^\s*[-*]\s+/gm, '• ')
+      .trim();
+  }
+
+  function aggiungiBolla(testo, tipo) {
+    var bolla = document.createElement('div');
+    bolla.className = 'bolla bolla--' + tipo;
+    bolla.textContent = tipo === 'ai' ? ripulisci(testo) : testo;
+    chat.appendChild(bolla);
+    bolla.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    return bolla;
+  }
+
+  function bollaAttesa() {
+    var bolla = document.createElement('div');
+    bolla.className = 'bolla bolla--ai bolla--attesa';
+    bolla.setAttribute('aria-label', 'Sto scrivendo');
+    bolla.innerHTML = '<span></span><span></span><span></span>';
+    chat.appendChild(bolla);
+    bolla.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    return bolla;
+  }
+
+  function aggiornaStatoChat() {
+    var esaurite = stato.domandeRimaste <= 0;
+    inputDomanda.disabled = esaurite || stato.domandaInCorso;
+    bottoneDomanda.disabled = esaurite || stato.domandaInCorso;
+    suggerimenti.hidden = esaurite || chat.children.length > 0;
+
+    if (esaurite) {
+      notaChat.textContent =
+        'Hai usato tutte le domande di approfondimento. Lancia una nuova analisi per ripartire.';
+      inputDomanda.placeholder = 'Domande esaurite';
+    } else {
+      notaChat.textContent =
+        stato.domandeRimaste + (stato.domandeRimaste === 1 ? ' domanda rimasta' : ' domande rimaste');
+    }
+  }
+
+  function inviaDomanda(testo) {
+    if (stato.domandaInCorso || stato.domandeRimaste <= 0) return;
+
+    var domanda = testo.trim();
+    if (domanda.length < 3) return;
+
+    aggiungiBolla(domanda, 'utente');
+    inputDomanda.value = '';
+    stato.domandaInCorso = true;
+    aggiornaStatoChat();
+
+    var attesa = bollaAttesa();
+
+    fetch('/api/domanda', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessione: stato.sessione, domanda: domanda })
+    })
+      .then(function (r) {
+        return r
+          .json()
+          .catch(function () {
+            return {};
+          })
+          .then(function (d) {
+            return { ok: r.ok, dati: d };
+          });
+      })
+      .then(function (esito) {
+        attesa.remove();
+        stato.domandaInCorso = false;
+
+        if (!esito.ok) {
+          aggiungiBolla(
+            esito.dati.messaggio || 'Non sono riuscito a rispondere. Riprova tra poco.',
+            'errore'
+          );
+          // Una domanda fallita non viene contata dal server: aggiorniamo solo
+          // se è il server stesso a dirci quante ne restano.
+          if (typeof esito.dati.domandeRimaste === 'number') {
+            stato.domandeRimaste = esito.dati.domandeRimaste;
+          }
+          aggiornaStatoChat();
+          return;
+        }
+
+        aggiungiBolla(esito.dati.risposta, 'ai');
+        stato.domandeRimaste = esito.dati.domandeRimaste;
+        aggiornaStatoChat();
+      })
+      .catch(function () {
+        attesa.remove();
+        stato.domandaInCorso = false;
+        aggiungiBolla('Connessione assente. Controlla la rete e riprova.', 'errore');
+        aggiornaStatoChat();
+      });
+  }
+
+  formChat.addEventListener('submit', function (e) {
+    e.preventDefault();
+    inviaDomanda(inputDomanda.value);
+  });
+
+  // Invio con Enter, a capo con Shift+Enter (come in qualsiasi chat).
+  inputDomanda.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      inviaDomanda(inputDomanda.value);
+    }
+  });
+
+  Array.prototype.forEach.call(suggerimenti.querySelectorAll('.suggerimento'), function (chip) {
+    chip.addEventListener('click', function () {
+      var testo = chip.dataset.testo;
+      // I suggerimenti aperti ("Il venditore mi ha risposto che…") vanno completati
+      // dall'utente; quelli che sono già una domanda intera partono subito.
+      if (/[?]$/.test(testo)) {
+        inviaDomanda(testo);
+      } else {
+        inputDomanda.value = testo;
+        inputDomanda.focus();
+        inputDomanda.setSelectionRange(testo.length, testo.length);
+      }
+    });
+  });
+
+  function preparaChat(dati) {
+    stato.sessione = dati.sessione || null;
+    stato.domandeRimaste = typeof dati.domandeRimaste === 'number' ? dati.domandeRimaste : 0;
+    chat.innerHTML = '';
+    inputDomanda.value = '';
+    inputDomanda.placeholder = 'Scrivi qui la tua domanda o quello che hai scoperto…';
+    cardChat.hidden = !stato.sessione;
+    aggiornaStatoChat();
+  }
+
   function renderRisultati(dati) {
     renderRischio(dati.rischio);
     renderAffidabilita(dati.affidabilita);
     renderValutazione(dati.valutazione);
     renderDomande(dati.domande);
+    preparaChat(dati);
 
     risultati.hidden = false;
     // Riavvia le animazioni di ingresso delle card

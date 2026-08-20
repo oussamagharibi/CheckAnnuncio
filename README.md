@@ -132,7 +132,7 @@ curl -s http://localhost:3000/api/analizza \
 
 ```bash
 curl -s http://localhost:3000/api/stato
-# {"ok":true,"configurato":true,"limiteGiornaliero":10,"analisiRimaste":10}
+# {"ok":true,"configurato":true,"limiteGiornaliero":5,"analisiRimaste":5}
 ```
 
 ### E. Verifica della sintassi
@@ -145,6 +145,19 @@ node --check public/app.js
 ---
 
 ## API
+
+### `POST /api/domanda`
+
+Continua la conversazione aperta da un'analisi.
+
+| Campo | Tipo | Note |
+| --- | --- | --- |
+| `sessione` | string | **obbligatorio** — l'id restituito da `/api/analizza` |
+| `domanda` | string | **obbligatorio** — min 3 caratteri, max 600 |
+
+Risposta `200`: `{ "risposta": "…", "domandeRimaste": 3 }`
+
+Errori: `400 domanda_vuota` · `410 sessione_mancante` · `410 sessione_scaduta` · `429 domande_esaurite` · `503 ai_non_disponibile`
 
 ### `POST /api/analizza`
 
@@ -198,7 +211,9 @@ Risposta `200`:
     ]
   },
   "domande": ["…", "…"],
-  "analisiRimaste": 9
+  "analisiRimaste": 9,
+  "sessione": "uuid per le domande di approfondimento",
+  "domandeRimaste": 4
 }
 ```
 
@@ -369,28 +384,113 @@ Misure reali su `claude-sonnet-4-6` ($3,00/M input, $15,00/M output), cambio 1 �
 | --- | ---: | ---: | ---: | ---: | ---: |
 | **Screenshot** | 2.338 | 1.544 | $0,030 | €0,026 | ~30 s |
 | **Testo incollato** | 2.202 | 2.228 | $0,040 | €0,035 | ~42 s |
-| **Auto, con problemi noti** | 4.122 | 3.400 | $0,063 | €0,054 | ~68 s |
+| **Auto, con problemi noti** | 323 (+3.903 da cache) | 2.480 | $0,039 | €0,034 | ~50 s |
 | **Link** | 24.337 | 3.702 | $0,129 | €0,111 | ~79 s |
 
 Proiezioni (tutto screenshot / tutto link):
 
 | Volume | Screenshot | Link |
 | --- | ---: | ---: |
-| 1 utente che satura il limite (10 analisi) | $0,30 | $1,29 |
+| 1 utente che satura il limite (5 analisi) | $0,20 | $0,65 |
 | 100 analisi/mese | $3,02 | $12,85 |
 | 1.000 analisi/mese | $30 | $129 |
 | 10.000 analisi/mese | $302 | $1.285 |
 
 > **Il prompt "problemi noti" ha alzato il costo delle auto** da ~$0,04 a ~$0,063: l'input cresce poco, l'output passa da ~2.200 a ~3.400 token perché ogni problema porta con sé descrizione, costo e modo di verificarlo. Il passaggio a `effort: low` ha riassorbito buona parte dell'aumento (da $0,089 a $0,063) — vedi [Perché un'analisi richiede ~60 secondi](#perché-unanalisi-richiede-60-secondi).
 
+### Dove finiscono davvero i soldi
+
+Le due metà del prodotto hanno il problema opposto, e questo decide la cura:
+
+| | Input | Output |
+| --- | ---: | ---: |
+| Analisi | 21% | **79%** |
+| Domanda di approfondimento | **62%** | 38% |
+
+Nell'analisi comanda l'output, quindi il prompt caching serve a poco (misurato: 11%). Nelle domande comanda l'input, perché l'API è stateless e tutta la conversazione riparte a ogni giro.
+
+### Cosa è stato fatto
+
+**1. Le domande girano su Haiku 4.5** (`MODELLO_CHAT`). Una domanda di approfondimento è conversazione breve su un'analisi già fatta: non serve il ragionamento che serve all'analisi. Misurato: **da $0,0151 a $0,0043 (−72%)**, e da 6-7 s a 2-3 s. La qualità regge il confronto — sullo stesso caso "il venditore dice che il cambio non ha mai dato problemi ma non ha fatture", entrambi i modelli arrivano allo stesso consiglio pratico (sconto di 500-800 €, perizia indipendente).
+
+L'analisi resta su Sonnet: lì il ragionamento serve davvero.
+
+**2. Prompt caching sul prompt di sistema dell'analisi.** È lungo 3.806 token ed è **identico per ogni utente**, quindi in cache resta caldo finché arriva traffico. Misurato: **−11%** per analisi a cache calda, contro un sovrapprezzo di $0,0022 quando è fredda. Conviene già sopra un quinto di richieste ravvicinate.
+
+**3. Cache anche sul prefisso delle conversazioni** — ma con un'avvertenza. Haiku 4.5 mette in cache solo prefissi da **4.096 token** in su, e una conversazione di solo testo ne ha ~3.000: lì il marcatore viene ignorato in silenzio, senza costi né errori. Serve quando l'annuncio aveva delle foto, perché ogni immagine porta il prefisso ben oltre la soglia. Il marcatore resta perché non costa nulla quando non serve.
+
+**4. Output dell'analisi più compatto.** Lo schema è stato stretto a 3-5 segnali, 3-5 dettagli, 3-4 problemi e 5 domande, con due regole in più: ogni campo al massimo 2 frasi, e divieto di ripetere lo stesso contenuto in sezioni diverse (il cambio DSG compariva sia in `affidabilita` sia in `valutazione.dettagli`). L'output scende da ~3.300 a ~2.480 token, **−25%**.
+
+**5. Limite giornaliero da 10 a 5 analisi.** Decisione di prodotto: dimezza tutto senza toccare la qualità di una singola analisi.
+
+### Risultato
+
+| | Prima | Adesso |
+| --- | ---: | ---: |
+| Analisi (cache calda) | $0,0592 | **$0,0391** |
+| Analisi (cache fredda) | $0,0592 | $0,0531 |
+| Domanda | $0,0151 | **$0,0038** |
+| **Peggior caso per IP al giorno** | **$1,20** (10+40) | **$0,27** (5+20) |
+
+**Da €1,03 a €0,24 al giorno** per l'utente più vorace: **−77%**. E resta un caso teorico, presuppone che qualcuno esaurisca ogni analisi e ogni domanda.
+
+A volume: 100 analisi + 200 domande al mese costano **$4,67**; 1.000 + 2.000 costano **$46,70**.
+
+### Cosa si è perso per strada
+
+L'output compatto toglie qualcosa, ed è giusto saperlo: da 5 problemi meccanici a 4, da 6 dettagli a 4, da 7 domande a 5. Nella prova di controllo i due problemi più gravi (cambio DQ200 e catena di distribuzione EA111) sono rimasti, insieme a consumo d'olio e frizione. Il taglio ha colpito le voci di contorno, non il cuore dell'analisi.
+
+Se un domani vuoi tornare indietro, le leve sono nel prompt di sistema (le righe "segnali/dettagli/problemi/domande" nelle regole rigide) e `LIMITE_ANALISI_GIORNALIERE` in cima a `server.js`.
+
 ### Le leve sul costo
 
 - **Lo screenshot è il canale più economico**, oltre che il più affidabile: è giusto che resti il predefinito.
 - **`MAX_TOKEN_PAGINA`** (in `server.js`) è la leva più forte sul canale link. Portandolo da 40.000 a **12.000** il costo è sceso da $0,32 a $0,129 (−60%) **senza perdere qualità**: nella prova di verifica l'analisi leggeva ancora prezzo, km, anno, motorizzazione e allestimento corretti. Non alzarlo senza un motivo.
+- **`MODELLO_CHAT`** decide il modello delle domande di approfondimento. Rimetterlo su un Sonnet riattiva il thinking adattivo in automatico, e quadruplica il costo di quella parte.
 - **`output_config.effort`** è ora a `low` (variabile `SFORZO_AI` per cambiarlo senza toccare il codice). Misurato: dimezza tempo e costo senza perdita di qualità. Alzarlo a `medium` riporta il rischio di troncamento descritto sopra.
 - **Il prompt caching qui non conviene.** Il prompt di sistema è ~1.800 token: scriverlo in cache costa $3,75/M e rileggerlo $0,30/M, ma la cache dura 5 minuti. Con traffico sporadico si pagherebbe la scrittura senza quasi mai rileggere, cioè più di adesso. Avrebbe senso solo con richieste molto ravvicinate e continue.
 
 Attenzione: **anche le analisi fallite consumano token** e vengono contate nel log (il `finally` nella rotta), ma **non** scalano il rate limit dell'utente.
+
+---
+
+## Chiedi ancora: 4 domande di approfondimento
+
+Sotto i risultati c'è una chat che **continua** la conversazione invece di rianalizzare da zero. Serve per due cose: chiedere chiarimenti, e dare informazioni che nell'annuncio non c'erano ("il venditore mi ha risposto che…", "l'ho vista dal vivo e…").
+
+### Dove sta il contesto
+
+L'app non ha database, ma la conversazione ha bisogno di memoria. La tengo in una `Map` in memoria, la stessa categoria del contatore di rate limit — **si perde a ogni riavvio o redeploy**, ed è un compromesso accettato: una sessione dura al massimo 20 minuti.
+
+Nella sessione ci sono anche le foto, perché una domanda di approfondimento spesso chiede di riguardarle. Sono l'unica cosa pesante, quindi la mappa è limitata su tre fronti insieme:
+
+| Limite | Valore |
+| --- | --- |
+| Scadenza dall'ultimo uso | 20 minuti |
+| Sessioni contemporanee | 30 (sfratto della più vecchia) |
+| Byte totali delle foto | 150 MB (sfratto finché rientra) |
+| Domande per sessione | 4 |
+
+La sessione è legata all'IP che l'ha creata: un id rubato non basta a usarla.
+
+### Perché è veloce
+
+L'analisi completa produce ~3.200 token di output; una risposta di approfondimento ne produce 90-400. Con la latenza che dipende dall'output, questo significa **6-7 secondi invece di ~65**.
+
+Il prompt di follow-up è diverso da quello dell'analisi: chiede testo normale (mai JSON), 2-5 frasi, di non ripetere quanto già detto e di dire esplicitamente se la nuova informazione **sposta il rischio**. Il conteggio scala solo a risposta riuscita: un errore di rete non ti brucia una domanda.
+
+### Costi
+
+| | Costo |
+| --- | ---: |
+| Una domanda | $0,013-0,015 |
+| Analisi + 4 domande | ~$0,12 |
+
+L'input di ogni domanda è alto (~3.100-3.700 token) perché tutta la conversazione viaggia a ogni giro: l'API è stateless, la storia va rimandata ogni volta.
+
+### Il markdown
+
+Il modello tende a rispondere con `**grassetto**` ed elenchi, ma le bolle usano `textContent` e mostrerebbero gli asterischi grezzi. Doppia difesa: il prompt chiede testo semplice, e `ripulisci()` in `app.js` toglie quel che sfugge, convertendo i trattini in punti elenco. Attenzione: la regex per il corsivo evita di rovinare le moltiplicazioni — `2 * 3 = 6` resta intatto.
 
 ---
 
@@ -428,7 +528,7 @@ Risultato su tre analisi consecutive della stessa auto: **66-70 secondi**, una s
 
 ## Rate limit
 
-Massimo **10 analisi per indirizzo IP al giorno**, contate solo per le analisi andate a buon fine.
+Massimo **5 analisi per indirizzo IP al giorno** (`LIMITE_ANALISI_GIORNALIERE`), contate solo per le analisi andate a buon fine, più 4 domande di approfondimento per ogni analisi.
 
 > ⚠️ **Il contatore è tenuto in memoria (una `Map` nel processo Node): si azzera a ogni riavvio del server e quindi a ogni redeploy su Railway.** Anche uno scale-out su più istanze farebbe partire ogni istanza con il proprio contatore. Va benissimo come freno anti-abuso leggero; se serve un limite reale e persistente, occorre uno store esterno (Redis, database) — che questo progetto volutamente non ha.
 
