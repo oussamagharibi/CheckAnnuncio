@@ -168,6 +168,8 @@ Body JSON (serve **almeno uno** tra `immagine`, `link` e `testo`):
 | `profilo.budget`    | number  | euro                                                                  |
 | `profilo.neopatentato` | boolean |                                                                    |
 
+Il campo `affidabilita` è **sempre presente per `categoria: auto`** e facoltativo per le altre.
+
 Risposta `200`:
 
 ```json
@@ -182,6 +184,17 @@ Risposta `200`:
     "verdetto": "…",
     "dettagli": [
       { "etichetta": "Prezzo", "stato": "ok|attenzione|critico|info", "testo": "…" }
+    ]
+  },
+  "affidabilita": {
+    "verdetto": "…",
+    "problemi": [
+      {
+        "componente": "Cambio DSG DQ200",
+        "gravita": "alta|media|bassa",
+        "descrizione": "…",
+        "verifica": "…"
+      }
     ]
   },
   "domande": ["…", "…"],
@@ -241,6 +254,50 @@ Verificato con tre screenshot dello stesso finto annuncio Audi A3, con contraddi
 Risultato: **rischio 10/10**, con i due primi segnali dedicati proprio alle contraddizioni — *«L'immagine 1 riporta 8.500 EUR, ma la descrizione (immagine 2) dichiara PREZZO REALE 3.900 EURO»* e *«Il titolo dichiara 92.000 km, ma la descrizione ammette 145.000 km effettivi»*. Con una foto sola nessuna delle due sarebbe emersa.
 
 Costi misurati: 1 foto $0,033, 3 foto $0,047. Ogni immagine aggiunge token in input, ma la crescita è contenuta perché il grosso del costo resta l'output.
+
+---
+
+## La data di oggi, a ogni richiesta
+
+Il modello, lasciato a sé, ragiona sull'anno del proprio addestramento. Il risultato erano età dei veicoli sbagliate di un anno, scadenze di revisione calcolate male e nessuna nozione della stagione in corso.
+
+Ogni prompt utente ora si apre con la data reale, generata da `dataDiOggi()` in `server.js`:
+
+```
+OGGI È GIOVEDÌ 20 AGOSTO 2026 (2026-08-20). Siamo in estate.
+```
+
+Il prompt di sistema spiega cosa farci: calcolare l'età rispetto a oggi, dedurre le scadenze (revisione a 4 anni dall'immatricolazione, poi ogni 2), applicare il deprezzamento e soprattutto la **stagionalità dei prezzi** — cabrio care d'estate, SUV in inverno, condizionatori a luglio, mercato lento ad agosto e a fine anno.
+
+La data sta nel messaggio utente, non nel prompt di sistema: è l'unico contenuto che cambia a ogni richiesta e tenerlo fuori dal prefisso stabile lascia aperta la porta al prompt caching, se un domani il traffico lo rendesse conveniente.
+
+Effetto misurato su una Golf del 03/2012:
+
+> *"Immatricolata 03/2012, oggi 08/2026: 14 anni e 5 mesi"* · *"Revisione: l'ultima scadenza era marzo 2026"* · *"siamo in agosto (mercato lento, meno compratori): 6.000-6.300 € è una proposta ragionevole da avanzare in trattativa"*
+
+---
+
+## Problemi noti del modello (quarta card)
+
+Un annuncio onesto può nascondere un'auto fragile: il rischio truffa a 2/10 non dice nulla su un cambio che cede a 150.000 km. Per questo la risposta include un blocco `affidabilita`:
+
+```json
+"affidabilita": {
+  "verdetto": "...",
+  "problemi": [
+    { "componente": "Cambio DSG DQ200", "gravita": "alta",
+      "descrizione": "difetto, km o età a cui si presenta, costo in euro",
+      "verifica": "cosa chiedere, guardare o farsi mostrare" }
+  ]
+}
+```
+
+- **Obbligatorio per `categoria: auto`** — validato in `validaSchema()`, che riceve la categoria e fa scattare il retry se manca o se l'elenco è vuoto.
+- **Facoltativo** per telefono e altro: la card resta nascosta se l'AI non produce nulla. In pratica la compila spesso (degrado batteria, blocco iCloud, burn-in OLED).
+- Il prompt pretende difetti di *quella* motorizzazione: *"controlla i freni" non è un punto debole noto*.
+- Almeno 2 delle domande al venditore devono agganciare i problemi trovati.
+
+Esempio reale (Golf VI 1.4 TSI 122cv DSG, 148.000 km): mecatronica DQ200 e frizione/volano segnalati come **gravi** con costi 1.200-2.800 €, più catena di distribuzione, consumo d'olio e turbina — ognuno con la prova pratica da fare durante il test drive.
 
 ---
 
@@ -312,6 +369,7 @@ Misure reali su `claude-sonnet-4-6` ($3,00/M input, $15,00/M output), cambio 1 �
 | --- | ---: | ---: | ---: | ---: | ---: |
 | **Screenshot** | 2.338 | 1.544 | $0,030 | €0,026 | ~30 s |
 | **Testo incollato** | 2.202 | 2.228 | $0,040 | €0,035 | ~42 s |
+| **Auto, con problemi noti** | 4.122 | 5.130 | $0,089 | €0,077 | ~90 s |
 | **Link** | 24.337 | 3.702 | $0,129 | €0,111 | ~79 s |
 
 Proiezioni (tutto screenshot / tutto link):
@@ -322,6 +380,8 @@ Proiezioni (tutto screenshot / tutto link):
 | 100 analisi/mese | $3,02 | $12,85 |
 | 1.000 analisi/mese | $30 | $129 |
 | 10.000 analisi/mese | $302 | $1.285 |
+
+> **Il prompt "problemi noti" ha più che raddoppiato il costo delle auto**: da ~$0,04 a ~$0,09. L'input cresce (prompt di sistema più lungo) ma soprattutto cresce l'output, da ~2.200 a ~5.100 token, perché ogni problema porta con sé descrizione, costo e modo di verificarlo. È il prezzo della sezione: se dovesse pesare troppo, la leva è ridurre i problemi richiesti da 3-6 a 3-4, non tagliare i dettagli che li rendono utili.
 
 ### Le leve sul costo
 

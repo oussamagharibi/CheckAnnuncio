@@ -451,6 +451,7 @@
     'Controllo il prezzo rispetto al mercato…',
     'Cerco segnali di truffa…',
     'Verifico la coerenza dei dati…',
+    'Cerco i punti deboli noti di questo modello…',
     'Analizzo le foto e la descrizione…',
     'Incrocio i dati con il tuo profilo…',
     'Preparo le domande per il venditore…',
@@ -612,6 +613,64 @@
     });
   }
 
+  var ETICHETTE_GRAVITA = { alta: 'Grave', media: 'Da controllare', bassa: 'Minore' };
+
+  function renderAffidabilita(affidabilita) {
+    var card = $('cardAffidabilita');
+
+    // La sezione esiste solo quando l'AI la produce (obbligatoria per le auto,
+    // facoltativa per telefono/altro): senza dati la card resta nascosta.
+    if (!affidabilita || !affidabilita.verdetto) {
+      card.hidden = true;
+      return;
+    }
+
+    card.hidden = false;
+    $('testoAffidabilita').textContent = affidabilita.verdetto;
+
+    var lista = $('listaProblemi');
+    lista.innerHTML = '';
+
+    (affidabilita.problemi || []).forEach(function (problema, i) {
+      var li = document.createElement('li');
+      li.className = 'problema problema--' + problema.gravita;
+      li.style.setProperty('--ritardo-riga', 480 + i * 80 + 'ms');
+
+      var testata = document.createElement('div');
+      testata.className = 'problema__testata';
+
+      var componente = document.createElement('span');
+      componente.className = 'problema__componente';
+      componente.textContent = problema.componente;
+
+      var gravita = document.createElement('span');
+      gravita.className = 'gravita';
+      gravita.textContent = ETICHETTE_GRAVITA[problema.gravita] || 'Da valutare';
+
+      testata.appendChild(componente);
+      testata.appendChild(gravita);
+
+      var descrizione = document.createElement('p');
+      descrizione.className = 'problema__descrizione';
+      descrizione.textContent = problema.descrizione;
+
+      li.appendChild(testata);
+      li.appendChild(descrizione);
+
+      if (problema.verifica) {
+        var verifica = document.createElement('p');
+        verifica.className = 'problema__verifica';
+        var titolo = document.createElement('strong');
+        titolo.textContent = 'Come verificare:';
+        verifica.appendChild(titolo);
+        verifica.appendChild(document.createTextNode(' ' + problema.verifica));
+        li.appendChild(verifica);
+      }
+
+      lista.appendChild(li);
+    });
+  }
+
   function renderDomande(domande) {
     var lista = $('listaDomande');
     lista.innerHTML = '';
@@ -671,6 +730,7 @@
 
   function renderRisultati(dati) {
     renderRischio(dati.rischio);
+    renderAffidabilita(dati.affidabilita);
     renderValutazione(dati.valutazione);
     renderDomande(dati.domande);
 

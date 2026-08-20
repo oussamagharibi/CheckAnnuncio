@@ -122,6 +122,22 @@ const PROMPT_SISTEMA = `Sei l'analista anti-truffa di "CheckAnnuncio", un serviz
 
 L'utente ti fornisce lo screenshot di un annuncio (o il suo testo incollato) e alcune informazioni sul proprio profilo. Il tuo compito è produrre una valutazione onesta, concreta e utile, scritta in italiano semplice, da amico esperto: niente burocratese, niente frasi vuote.
 
+## La data conta
+
+All'inizio del messaggio dell'utente trovi sempre la data di oggi. Non è un dettaglio decorativo: usala e non fidarti della tua idea di "anno corrente", che è quasi sempre indietro rispetto alla realtà.
+- Calcola l'età reale del veicolo/oggetto rispetto a OGGI, non rispetto a un anno che ricordi. Un'auto del 2015 nel 2026 ha 11 anni, non 10.
+- Deprezzamento: il valore dell'usato cala ogni anno che passa. Un prezzo giusto due anni fa oggi è fuori mercato.
+- Scadenze: revisione (in Italia la prima a 4 anni dall'immatricolazione, poi ogni 2), garanzia di fabbrica, bollo. Calcolale sulla data di oggi e di' se sono in scadenza o già scadute.
+- Stagionalità dei prezzi, che sposta il valore anche del 10-15%:
+  - cabrio, spider e decappottabili: care in primavera/estate, molto più trattabili da ottobre a febbraio
+  - 4x4, SUV e fuoristrada: richiesti in autunno/inverno, più trattabili in primavera
+  - moto e scooter: idem, picco a marzo-giugno
+  - climatizzatori e condizionatori: cari a giugno-agosto; stufe e caldaie: care a ottobre-gennaio
+  - gommato invernale/termico incluso vale in autunno, molto meno a maggio
+  - fine anno (novembre-dicembre) e agosto: mercato lento, più margine di trattativa
+- Se l'annuncio propone un prezzo da alta stagione fuori stagione (o viceversa), dillo: è un margine di trattativa concreto per l'utente.
+- Se citi una scadenza o un calcolo di età, mostra il conto ("immatricolata 03/2015, quindi 11 anni a oggi").
+
 ## Cosa devi valutare
 
 ### 1. RISCHIO TRUFFA (punteggio da 1 a 10)
@@ -154,8 +170,24 @@ Quando il profilo c'è, valuta se QUELL'auto è adatta a LUI e includi questi gi
 - budget: l'annuncio rientra nel budget? Ricorda i costi accessori (passaggio di proprietà, assicurazione, bollo, tagliando, gomme)
 - neopatentato: verifica il limite di legge italiano (per i primi 12 mesi: potenza specifica max 55 kW/t e potenza max 70 kW per le auto). Se il veicolo rischia di sforare, avvisa chiaramente e suggerisci di controllare kW e massa sul libretto.
 
-### 4. DOMANDE DA FARE AL VENDITORE
+### 4. AFFIDABILITÀ E PROBLEMI NOTI DEL MODELLO
+Questa parte è obbligatoria per la categoria "auto", e va compilata anche quando l'annuncio è pulitissimo e il venditore è serio: un'auto senza truffa può comunque essere una pessima auto.
+Identifica il modello, l'allestimento, la motorizzazione e il cambio dal materiale fornito, poi elenca i punti deboli NOTI di QUELLA combinazione — non genericità valide per qualsiasi auto.
+Copri, quando pertinenti:
+- motore: catena o cinghia di distribuzione (e a che km va sostituita), consumo d'olio, guarnizione testata, pompa acqua, iniettori, candelette, turbina, valvola EGR
+- alimentazione diesel: FAP/DPF che si intasa nei percorsi urbani brevi, additivo AdBlue, ricircolo gas
+- trasmissione: cambi automatici e robotizzati problematici (es. mecatronica dei doppia frizione a secco), frizione, volano bimassa, giunti omocinetici
+- ibride ed elettriche: degrado della batteria ad alta tensione, costo di sostituzione, garanzia residua sulla batteria, inverter
+- elettronica e resto: centraline, sensori, infiltrazioni d'acqua, corrosione, sospensioni pneumatiche, catalizzatore
+- richiami ufficiali e casi noti che riguardano quel motore o quegli anni di produzione
+Per ogni problema indica a quali chilometraggi o età si manifesta di solito e l'ordine di grandezza del costo di riparazione in euro, in Italia. Se non conosci il costo con ragionevole precisione, scrivi che è da preventivare invece di inventare una cifra.
+Indica anche come si verifica su QUESTO esemplare: cosa chiedere, cosa guardare, quale documento farsi mostrare.
+Se dal materiale non riesci a identificare con certezza la motorizzazione, dillo apertamente e ragiona sul modello in generale, segnalando che serve conferma.
+Per le categorie "telefono" e "altro" compila questa sezione solo se conosci difetti ricorrenti di quel prodotto (batteria che degrada, scocca che si crepa, blocco operatore, componenti fuori produzione); altrimenti restituisci un elenco vuoto e un verdetto che lo spiega.
+
+### 5. DOMANDE DA FARE AL VENDITORE
 Genera da 5 a 7 domande specifiche su QUESTO annuncio (mai generiche), scritte come le scriverebbe l'utente in chat, pronte da copiare e incollare. Devono servire a smascherare una truffa o a far emergere difetti nascosti: richiesta di dati identificativi, foto aggiuntive con dettaglio richiesto, storia manutentiva, disponibilità a incontrarsi/videochiamare, modalità di pagamento, documenti.
+Per la categoria "auto", almeno 2 domande devono puntare dritte ai problemi noti elencati al punto 4 (per esempio: fattura del cambio catena, comportamento del cambio a freddo, rigenerazioni del FAP, stato di salute della batteria).
 
 ## Formato della risposta (OBBLIGATORIO)
 
@@ -182,6 +214,17 @@ Rispondi ESCLUSIVAMENTE con un oggetto JSON valido, senza testo prima o dopo, se
       }
     ]
   },
+  "affidabilita": {
+    "verdetto": "<2-4 frasi: quanto è affidabile questa specifica motorizzazione/modello, cosa aspettarsi ai chilometri attuali>",
+    "problemi": [
+      {
+        "componente": "<max 40 caratteri, es. 'Catena di distribuzione', 'Cambio DSG DQ200', 'FAP'>",
+        "gravita": "<alta|media|bassa>",
+        "descrizione": "<qual è il problema, a che km o età si presenta, ordine di grandezza del costo in euro>",
+        "verifica": "<come capire se QUESTO esemplare ce l'ha: cosa chiedere, guardare o farsi mostrare>"
+      }
+    ]
+  },
   "domande": [
     "<domanda 1 pronta da inviare al venditore>"
   ]
@@ -190,13 +233,53 @@ Rispondi ESCLUSIVAMENTE con un oggetto JSON valido, senza testo prima o dopo, se
 Regole rigide:
 - "segnali": da 3 a 7 elementi. Usa "verde" anche per gli elementi rassicuranti, così l'utente vede un quadro equilibrato.
 - "dettagli": da 3 a 8 elementi. Per la categoria "auto" con profilo compilato, almeno 2 devono riguardare l'adeguatezza al profilo dell'utente.
+- "affidabilita.problemi": da 3 a 6 elementi per la categoria "auto". Devono riguardare QUELLA motorizzazione, non l'automobile in generale: "controlla i freni" non è un punto debole noto. Per "telefono" e "altro" l'elenco può essere vuoto.
+- "affidabilita.verdetto": sempre presente, anche quando l'elenco dei problemi è vuoto.
 - "domande": da 5 a 7 stringhe, ognuna una singola domanda, senza numerazione iniziale.
 - Nessun campo aggiuntivo, nessun campo mancante.
 - Tutto il testo in italiano, con il "tu".
-- Se il materiale fornito è illeggibile o non è un annuncio di vendita, restituisci comunque il JSON: punteggio basso, un segnale di livello "giallo" che lo spiega, e domande generiche ma utili.`;
+- Se il materiale fornito è illeggibile o non è un annuncio di vendita, restituisci comunque il JSON: punteggio basso, un segnale di livello "giallo" che lo spiega, "affidabilita.problemi" vuoto, e domande generiche ma utili.`;
 
-function costruisciPromptUtente(dati) {
+const MESI = [
+  'gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno',
+  'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre'
+];
+const GIORNI = ['domenica', 'lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato'];
+
+function stagioneDi(mese) {
+  if (mese <= 1 || mese === 11) return 'inverno';
+  if (mese <= 4) return 'primavera';
+  if (mese <= 7) return 'estate';
+  return 'autunno';
+}
+
+/**
+ * Data odierna in chiaro per il modello.
+ *
+ * Serve perché il modello, lasciato a sé, ragiona sull'anno del proprio
+ * addestramento: sbaglia l'età dei veicoli, le scadenze di revisione e la
+ * stagione di riferimento per i prezzi. Gliela diamo a ogni richiesta.
+ */
+function dataDiOggi(adesso = new Date()) {
+  const giorno = GIORNI[adesso.getDay()];
+  const mese = adesso.getMonth();
+  return {
+    testo: `${giorno} ${adesso.getDate()} ${MESI[mese]} ${adesso.getFullYear()}`,
+    iso: `${adesso.getFullYear()}-${String(mese + 1).padStart(2, '0')}-${String(adesso.getDate()).padStart(2, '0')}`,
+    anno: adesso.getFullYear(),
+    stagione: stagioneDi(mese)
+  };
+}
+
+function costruisciPromptUtente(dati, adesso) {
   const righe = [];
+  const oggi = dataDiOggi(adesso);
+
+  righe.push(`OGGI È ${oggi.testo.toUpperCase()} (${oggi.iso}). Siamo in ${oggi.stagione}.`);
+  righe.push(
+    `Usa questa data per calcolare l'età dell'oggetto, le scadenze e l'effetto della stagione sul prezzo. L'anno corrente è ${oggi.anno}: non usarne un altro, nemmeno se la tua memoria suggerisce diversamente.`
+  );
+  righe.push('');
   righe.push('Analizza questo annuncio.');
   righe.push('');
   righe.push(`Categoria dichiarata dall'utente: ${dati.categoria}`);
@@ -549,7 +632,7 @@ function stringaPulita(valore, maxLunghezza) {
  * Verifica che la risposta rispetti lo schema e la normalizza.
  * Lancia un Error se lo schema non è rispettato (così scatta il retry).
  */
-function validaSchema(oggetto) {
+function validaSchema(oggetto, categoria) {
   if (!oggetto || typeof oggetto !== 'object' || Array.isArray(oggetto)) {
     throw new Error('La risposta non è un oggetto JSON.');
   }
@@ -607,6 +690,37 @@ function validaSchema(oggetto) {
 
   if (dettagli.length === 0) throw new Error('Nessun dettaglio utilizzabile in "valutazione.dettagli".');
 
+  // Affidabilità: obbligatoria per le auto, facoltativa per le altre categorie.
+  const grezzoAffidabilita = oggetto.affidabilita;
+  let affidabilita = null;
+
+  if (grezzoAffidabilita && typeof grezzoAffidabilita === 'object') {
+    const verdettoAff = stringaPulita(grezzoAffidabilita.verdetto, 700);
+    const gravitaAmmesse = ['alta', 'media', 'bassa'];
+    const problemi = (Array.isArray(grezzoAffidabilita.problemi) ? grezzoAffidabilita.problemi : [])
+      .filter((p) => p && typeof p === 'object')
+      .map((p) => {
+        const gravita = typeof p.gravita === 'string' ? p.gravita.toLowerCase() : '';
+        return {
+          componente: stringaPulita(p.componente, 60),
+          gravita: gravitaAmmesse.includes(gravita) ? gravita : 'media',
+          descrizione: stringaPulita(p.descrizione, 500),
+          verifica: stringaPulita(p.verifica, 400)
+        };
+      })
+      .filter((p) => p.componente && p.descrizione)
+      .slice(0, 6);
+
+    if (verdettoAff) affidabilita = { verdetto: verdettoAff, problemi };
+  }
+
+  if (categoria === 'auto') {
+    if (!affidabilita) throw new Error('Campo "affidabilita" mancante o senza verdetto.');
+    if (affidabilita.problemi.length === 0) {
+      throw new Error('Per le auto "affidabilita.problemi" non può essere vuoto.');
+    }
+  }
+
   if (!Array.isArray(oggetto.domande)) throw new Error('Campo "domande" mancante.');
 
   const domande = oggetto.domande
@@ -616,11 +730,13 @@ function validaSchema(oggetto) {
 
   if (domande.length < 3) throw new Error('Servono almeno 3 domande in "domande".');
 
-  return {
+  const risultato = {
     rischio: { punteggio, segnali },
     valutazione: { verdetto, dettagli },
     domande
   };
+  if (affidabilita) risultato.affidabilita = affidabilita;
+  return risultato;
 }
 
 // ---------------------------------------------------------------------------
@@ -648,6 +764,7 @@ function costruisciContenutoUtente(dati) {
   });
 
   contenuto.push({ type: 'text', text: costruisciPromptUtente(dati) });
+
   return contenuto;
 }
 
@@ -720,11 +837,11 @@ function candidatiTesto(risposta) {
   return [blocchi[blocchi.length - 1], blocchi.join('\n')];
 }
 
-function primoJsonValido(risposta) {
+function primoJsonValido(risposta, categoria) {
   let ultimoErrore = new Error('La risposta non contiene testo.');
   for (const candidato of candidatiTesto(risposta)) {
     try {
-      return validaSchema(estraiJson(candidato));
+      return validaSchema(estraiJson(candidato), categoria);
     } catch (errore) {
       ultimoErrore = errore;
     }
@@ -805,7 +922,7 @@ async function analizzaConAI(dati, consumo) {
     }
 
     try {
-      const analisi = primoJsonValido(risposta);
+      const analisi = primoJsonValido(risposta, dati.categoria);
 
       if (analisi.valutazione.verdetto.startsWith(MARCATORE_PAGINA_KO)) {
         if (dati.immagini.length === 0 && !dati.testo) {

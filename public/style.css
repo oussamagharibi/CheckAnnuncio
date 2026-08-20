@@ -1359,6 +1359,92 @@ input[type='number']::-webkit-inner-spin-button {
   font-size: 0.92rem;
 }
 
+/* problemi noti */
+
+.problemi {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.problema {
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--superficie);
+  border: 1px solid var(--bordo);
+  border-left: 3px solid var(--colore-gravita, var(--bordo-forte));
+  animation: entraRiga 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--ritardo-riga, 0ms);
+  transition: background var(--transizione), transform var(--transizione);
+}
+
+.problema:hover {
+  background: var(--superficie-alta);
+  transform: translateX(3px);
+}
+
+.problema--alta {
+  --colore-gravita: var(--rosso);
+}
+
+.problema--media {
+  --colore-gravita: var(--arancio);
+}
+
+.problema--bassa {
+  --colore-gravita: var(--giallo);
+}
+
+.problema__testata {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin-bottom: 6px;
+}
+
+.problema__componente {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--testo);
+}
+
+.gravita {
+  flex: none;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: 999px;
+  color: var(--colore-gravita);
+  border: 1px solid currentColor;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.problema__descrizione {
+  font-size: 0.88rem;
+  color: var(--testo-tenue);
+}
+
+.problema__verifica {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--bordo);
+  font-size: 0.85rem;
+  color: var(--testo-tenue);
+}
+
+.problema__verifica strong {
+  flex: none;
+  color: var(--verde);
+  font-weight: 600;
+}
+
 /* domande */
 
 .domande {
