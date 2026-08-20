@@ -41,6 +41,13 @@ const MAX_ITERAZIONI_TOOL = 4; // giri di "pause_turn" concessi al web fetch
 const MAX_TOKEN_PAGINA = 12000; // tetto al contenuto scaricato da una pagina
 const MARCATORE_PAGINA_KO = 'PAGINA_NON_LEGGIBILE';
 
+// La latenza e' quasi tutta generazione di output: ~52 token al secondo, thinking
+// incluso. Con "medium" la risposta arrivava a 8000 token (~140 s) e veniva
+// troncata, facendo scattare un retry che raddoppiava di nuovo l'attesa.
+// Con "low" la stessa analisi esce in ~62 s senza perdere dettagli.
+const SFORZO = process.env.SFORZO_AI || 'low'; // low | medium | high
+const MAX_TOKEN_RISPOSTA = 16000;
+
 // Listino claude-sonnet-4-6, dollari per milione di token.
 const PREZZI_USD_PER_MILIONE = {
   input: 3.0,
@@ -857,9 +864,9 @@ async function eseguiTurno(messaggi, strumenti, esitoFetch, consumo) {
   for (let iterazione = 1; ; iterazione++) {
     const richiesta = {
       model: MODELLO,
-      max_tokens: 8000,
+      max_tokens: MAX_TOKEN_RISPOSTA,
       thinking: { type: 'adaptive' },
-      output_config: { effort: 'medium' },
+      output_config: { effort: SFORZO },
       system: PROMPT_SISTEMA,
       messages: messaggi
     };
@@ -907,6 +914,12 @@ async function analizzaConAI(dati, consumo) {
 
   for (let tentativo = 1; tentativo <= TENTATIVI_JSON; tentativo++) {
     const risposta = await eseguiTurno(messaggi, strumenti, esitoFetch, consumo);
+
+    if (risposta.stop_reason === 'max_tokens') {
+      console.warn(
+        `[analizza] risposta troncata a ${MAX_TOKEN_RISPOSTA} token al tentativo ${tentativo}`
+      );
+    }
 
     if (risposta.stop_reason === 'refusal') {
       throw new ErroreUtente(
@@ -957,7 +970,10 @@ async function analizzaConAI(dati, consumo) {
         content:
           `La risposta precedente non è utilizzabile (${errore.message}). ` +
           'Riscrivila ORA come singolo oggetto JSON valido conforme allo schema richiesto, ' +
-          'senza testo introduttivo, senza spiegazioni e senza blocchi di codice markdown.'
+          'senza testo introduttivo, senza spiegazioni e senza blocchi di codice markdown.' +
+          (risposta.stop_reason === 'max_tokens'
+            ? ' La precedente era troppo lunga ed è stata troncata: resta ai minimi previsti dallo schema (3 segnali, 3 dettagli, 3 problemi, 5 domande) e sii più conciso in ogni campo.'
+            : '')
       });
     }
   }

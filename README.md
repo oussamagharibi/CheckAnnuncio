@@ -369,7 +369,7 @@ Misure reali su `claude-sonnet-4-6` ($3,00/M input, $15,00/M output), cambio 1 �
 | --- | ---: | ---: | ---: | ---: | ---: |
 | **Screenshot** | 2.338 | 1.544 | $0,030 | €0,026 | ~30 s |
 | **Testo incollato** | 2.202 | 2.228 | $0,040 | €0,035 | ~42 s |
-| **Auto, con problemi noti** | 4.122 | 5.130 | $0,089 | €0,077 | ~90 s |
+| **Auto, con problemi noti** | 4.122 | 3.400 | $0,063 | €0,054 | ~68 s |
 | **Link** | 24.337 | 3.702 | $0,129 | €0,111 | ~79 s |
 
 Proiezioni (tutto screenshot / tutto link):
@@ -381,16 +381,48 @@ Proiezioni (tutto screenshot / tutto link):
 | 1.000 analisi/mese | $30 | $129 |
 | 10.000 analisi/mese | $302 | $1.285 |
 
-> **Il prompt "problemi noti" ha più che raddoppiato il costo delle auto**: da ~$0,04 a ~$0,09. L'input cresce (prompt di sistema più lungo) ma soprattutto cresce l'output, da ~2.200 a ~5.100 token, perché ogni problema porta con sé descrizione, costo e modo di verificarlo. È il prezzo della sezione: se dovesse pesare troppo, la leva è ridurre i problemi richiesti da 3-6 a 3-4, non tagliare i dettagli che li rendono utili.
+> **Il prompt "problemi noti" ha alzato il costo delle auto** da ~$0,04 a ~$0,063: l'input cresce poco, l'output passa da ~2.200 a ~3.400 token perché ogni problema porta con sé descrizione, costo e modo di verificarlo. Il passaggio a `effort: low` ha riassorbito buona parte dell'aumento (da $0,089 a $0,063) — vedi [Perché un'analisi richiede ~60 secondi](#perché-unanalisi-richiede-60-secondi).
 
 ### Le leve sul costo
 
 - **Lo screenshot è il canale più economico**, oltre che il più affidabile: è giusto che resti il predefinito.
 - **`MAX_TOKEN_PAGINA`** (in `server.js`) è la leva più forte sul canale link. Portandolo da 40.000 a **12.000** il costo è sceso da $0,32 a $0,129 (−60%) **senza perdere qualità**: nella prova di verifica l'analisi leggeva ancora prezzo, km, anno, motorizzazione e allestimento corretti. Non alzarlo senza un motivo.
-- **`output_config.effort`** è a `medium`. L'output è la voce di costo dominante sullo screenshot (~$0,023 su $0,030): passare a `low` lo ridurrebbe, ma accorcia anche segnali e domande — da misurare prima di adottarlo.
+- **`output_config.effort`** è ora a `low` (variabile `SFORZO_AI` per cambiarlo senza toccare il codice). Misurato: dimezza tempo e costo senza perdita di qualità. Alzarlo a `medium` riporta il rischio di troncamento descritto sopra.
 - **Il prompt caching qui non conviene.** Il prompt di sistema è ~1.800 token: scriverlo in cache costa $3,75/M e rileggerlo $0,30/M, ma la cache dura 5 minuti. Con traffico sporadico si pagherebbe la scrittura senza quasi mai rileggere, cioè più di adesso. Avrebbe senso solo con richieste molto ravvicinate e continue.
 
 Attenzione: **anche le analisi fallite consumano token** e vengono contate nel log (il `finally` nella rotta), ma **non** scalano il rate limit dell'utente.
+
+---
+
+## Perché un'analisi richiede ~60 secondi
+
+Quasi tutta l'attesa è **generazione di output**, non attesa di rete. Misurato su più richieste, il ritmo è costante intorno ai **52 token al secondo**, e i token di ragionamento (thinking) contano come output:
+
+| Output | Tempo | Velocità |
+| ---: | ---: | ---: |
+| 1.544 token | 30 s | 51 tok/s |
+| 2.228 token | 42 s | 53 tok/s |
+| 3.702 token | 79 s | 47 tok/s |
+
+Da qui la regola pratica: **tempo ≈ token di output ÷ 52**. Ogni sezione aggiunta al prompt allunga la risposta e quindi l'attesa. Il canale link aggiunge anche il tempo di scaricare la pagina.
+
+### Il troncamento che raddoppiava l'attesa
+
+Con `effort: medium` e la sezione "problemi noti", la risposta arrivava a sbattere contro il tetto di `max_tokens`, veniva troncata a metà JSON, la validazione falliva e partiva un retry — cioè una seconda generazione completa. Un'analisi poteva così superare i 200 secondi e costare il doppio, senza che nulla lo segnalasse.
+
+Tre correzioni:
+
+1. **`max_tokens` da 8.000 a 16.000.** Non costa nulla finché non viene usato: si paga l'output prodotto, non il tetto.
+2. **`effort` da `medium` a `low`** (`SFORZO_AI` per sovrascriverlo). Dimezza tempo e costo senza perdita di qualità misurabile — a parità di annuncio, `low` ha anzi individuato la pompa acqua con girante in plastica e il tendicatena EA111, e ha correttamente notato l'assenza di FAP trattandosi di un benzina.
+3. **`stop_reason: "max_tokens"` riconosciuto**: viene loggato, e il retry chiede una risposta più compatta invece di ripetere identica la richiesta che era già stata troncata.
+
+Risultato su tre analisi consecutive della stessa auto: **66-70 secondi**, una sola chiamata, 5-6 problemi, $0,062-0,064.
+
+### Se servisse ancora più veloce
+
+- **Streaming**: non riduce il tempo totale, ma permetterebbe di mostrare il testo mentre arriva. Qui il risultato è un JSON unico da rendere tutto insieme, quindi si guadagnerebbe solo in percezione.
+- **Due chiamate in parallelo** (rischio+valutazione da una parte, affidabilità+domande dall'altra): dimezzerebbe il tempo a parità di token, al prezzo di due prompt di sistema da pagare invece di uno.
+- **Accorciare le sezioni del prompt**: è la leva più diretta, ma si paga in profondità dell'analisi.
 
 ---
 
