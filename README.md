@@ -132,7 +132,7 @@ curl -s http://localhost:3000/api/analizza \
 
 ```bash
 curl -s http://localhost:3000/api/stato
-# {"ok":true,"configurato":true,"limiteGiornaliero":5,"analisiRimaste":5}
+# {"ok":true,"configurato":true,"limiteGiornaliero":10,"analisiRimaste":10}
 ```
 
 ### E. Verifica della sintassi
@@ -378,25 +378,32 @@ Il server stampa il costo di ogni analisi, calcolato dai token realmente consuma
 [costo] screenshot — $0.0302 | in 2338 · out 1544 · cache r/w 0/0 | 1 chiamata/e
 ```
 
-Misure reali su `claude-sonnet-4-6` ($3,00/M input, $15,00/M output), cambio 1 € = 1,158 $:
+Misure reali, cambio 1 € = 1,158 $. Le righe con la cache calda valgono quando il traffico tiene vivo il prompt di sistema:
 
 | Canale | Token in | Token out | Costo | ~EUR | Tempo |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| **Screenshot** | 2.338 | 1.544 | $0,030 | €0,026 | ~30 s |
-| **Testo incollato** | 2.202 | 2.228 | $0,040 | €0,035 | ~42 s |
-| **Auto, con problemi noti** | 323 (+3.903 da cache) | 2.480 | $0,039 | €0,034 | ~50 s |
-| **Link** | 24.337 | 3.702 | $0,129 | €0,111 | ~79 s |
+| **Auto da testo** (cache calda) | 323 + 3.903 letti | 2.480 | $0,039 | €0,034 | ~50 s |
+| **Auto da testo** (cache fredda) | 323 + 3.903 scritti | 2.500 | $0,053 | €0,046 | ~50 s |
+| **Domanda di approfondimento** (Haiku) | ~3.000 | ~200 | $0,004 | €0,003 | ~3 s |
 
-Proiezioni (tutto screenshot / tutto link):
+Le righe qui sotto sono **misure precedenti al lavoro sui costi**, tenute come riferimento sul peso relativo dei canali: lo screenshot è il più economico, il link il più caro perché si porta dietro la pagina scaricata. In valore assoluto oggi costano meno.
 
-| Volume | Screenshot | Link |
-| --- | ---: | ---: |
-| 1 utente che satura il limite (5 analisi) | $0,20 | $0,65 |
-| 100 analisi/mese | $3,02 | $12,85 |
-| 1.000 analisi/mese | $30 | $129 |
-| 10.000 analisi/mese | $302 | $1.285 |
+| Canale | Token in | Token out | Costo (prima) |
+| --- | ---: | ---: | ---: |
+| Screenshot | 2.338 | 1.544 | $0,030 |
+| Testo incollato | 2.202 | 2.228 | $0,040 |
+| Link | 24.337 | 3.702 | $0,129 |
 
-> **Il prompt "problemi noti" ha alzato il costo delle auto** da ~$0,04 a ~$0,063: l'input cresce poco, l'output passa da ~2.200 a ~3.400 token perché ogni problema porta con sé descrizione, costo e modo di verificarlo. Il passaggio a `effort: low` ha riassorbito buona parte dell'aumento (da $0,089 a $0,063) — vedi [Perché un'analisi richiede ~60 secondi](#perché-unanalisi-richiede-60-secondi).
+Proiezioni al costo attuale di un'analisi da testo ($0,039), domande escluse:
+
+| Volume | Costo |
+| --- | ---: |
+| 1 utente che satura il limite (10 analisi + 40 domande) | $0,54 |
+| 100 analisi/mese | $3,90 |
+| 1.000 analisi/mese | $39 |
+| 10.000 analisi/mese | $390 |
+
+Il canale link resta il più caro: la pagina scaricata entra nell'input a ogni analisi e la cache non la copre, perché cambia da annuncio ad annuncio.
 
 ### Dove finiscono davvero i soldi
 
@@ -421,7 +428,7 @@ L'analisi resta su Sonnet: lì il ragionamento serve davvero.
 
 **4. Output dell'analisi più compatto.** Lo schema è stato stretto a 3-5 segnali, 3-5 dettagli, 3-4 problemi e 5 domande, con due regole in più: ogni campo al massimo 2 frasi, e divieto di ripetere lo stesso contenuto in sezioni diverse (il cambio DSG compariva sia in `affidabilita` sia in `valutazione.dettagli`). L'output scende da ~3.300 a ~2.480 token, **−25%**.
 
-**5. Limite giornaliero da 10 a 5 analisi.** Decisione di prodotto: dimezza tutto senza toccare la qualità di una singola analisi.
+**5. Limite giornaliero: resta a 10 analisi per IP.** Era stato provato a 5 per dimezzare il tetto di spesa, ma con gli altri quattro interventi il costo è già sceso abbastanza da non doverlo sacrificare. Si cambia con `LIMITE_ANALISI_GIORNALIERE` in cima a `server.js`: portarlo a 5 dimezza il peggior caso.
 
 ### Risultato
 
@@ -430,9 +437,9 @@ L'analisi resta su Sonnet: lì il ragionamento serve davvero.
 | Analisi (cache calda) | $0,0592 | **$0,0391** |
 | Analisi (cache fredda) | $0,0592 | $0,0531 |
 | Domanda | $0,0151 | **$0,0038** |
-| **Peggior caso per IP al giorno** | **$1,20** (10+40) | **$0,27** (5+20) |
+| **Peggior caso per IP al giorno** (10 analisi + 40 domande) | **$1,20** | **$0,54** |
 
-**Da €1,03 a €0,24 al giorno** per l'utente più vorace: **−77%**. E resta un caso teorico, presuppone che qualcuno esaurisca ogni analisi e ogni domanda.
+**Da €1,03 a €0,47 al giorno** per l'utente più vorace, a parità di limite giornaliero: **−55%**. E resta un caso teorico, presuppone che qualcuno esaurisca ogni analisi e ogni domanda.
 
 A volume: 100 analisi + 200 domande al mese costano **$4,67**; 1.000 + 2.000 costano **$46,70**.
 
@@ -528,7 +535,7 @@ Risultato su tre analisi consecutive della stessa auto: **66-70 secondi**, una s
 
 ## Rate limit
 
-Massimo **5 analisi per indirizzo IP al giorno** (`LIMITE_ANALISI_GIORNALIERE`), contate solo per le analisi andate a buon fine, più 4 domande di approfondimento per ogni analisi.
+Massimo **10 analisi per indirizzo IP al giorno** (`LIMITE_ANALISI_GIORNALIERE`), contate solo per le analisi andate a buon fine, più 4 domande di approfondimento per ogni analisi.
 
 > ⚠️ **Il contatore è tenuto in memoria (una `Map` nel processo Node): si azzera a ogni riavvio del server e quindi a ogni redeploy su Railway.** Anche uno scale-out su più istanze farebbe partire ogni istanza con il proprio contatore. Va benissimo come freno anti-abuso leggero; se serve un limite reale e persistente, occorre uno store esterno (Redis, database) — che questo progetto volutamente non ha.
 
