@@ -76,24 +76,70 @@
             <span class="passo__numero">1</span>
             <div>
               <h2>L'annuncio</h2>
-              <p>Carica lo screenshot oppure incolla il testo.</p>
+              <p>Dove l'hai trovato? Da lì dipende come dartelo.</p>
             </div>
           </header>
 
-          <div class="selettore" role="tablist" aria-label="Modo di inserimento">
-            <button type="button" class="selettore__voce attivo" data-modo="immagine" role="tab" aria-selected="true">
-              <span aria-hidden="true">🖼️</span> Foto
+          <div class="selettore selettore--doppio" role="tablist" aria-label="Come fornire l'annuncio">
+            <button type="button" class="selettore__voce attivo" data-modo="link" role="tab" aria-selected="true">
+              <span class="selettore__icona" aria-hidden="true">🔗</span>
+              <span class="selettore__testi">
+                <strong>Ho il link</strong>
+                <small>Subito, AutoScout24, portali aperti</small>
+              </span>
             </button>
-            <button type="button" class="selettore__voce" data-modo="link" role="tab" aria-selected="false">
-              <span aria-hidden="true">🔗</span> Link
-            </button>
-            <button type="button" class="selettore__voce" data-modo="testo" role="tab" aria-selected="false">
-              <span aria-hidden="true">✍️</span> Testo
+            <button type="button" class="selettore__voce" data-modo="materiale" role="tab" aria-selected="false">
+              <span class="selettore__icona" aria-hidden="true">📸</span>
+              <span class="selettore__testi">
+                <strong>Foto e descrizione</strong>
+                <small>Marketplace e siti con login</small>
+              </span>
             </button>
           </div>
 
-          <!-- Drop zone -->
-          <div class="modo" id="modoImmagine">
+          <!-- 1) Link -->
+          <div class="modo" id="modoLink">
+            <label class="campo campo--input">
+              <span class="campo__etichetta">Indirizzo dell'annuncio</span>
+              <input
+                type="url"
+                id="inputLink"
+                inputmode="url"
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="https://www.subito.it/auto/…"
+              />
+            </label>
+            <div class="nota-modo">
+              <p>
+                <span aria-hidden="true">✅</span> Usa questa scheda per i portali <strong>aperti a
+                tutti</strong>, quelli che si vedono anche senza essere registrati: <strong>Subito</strong>,
+                <strong>AutoScout24</strong>, Automobile.it, Kijiji, eBay e simili. Apriamo la pagina
+                e leggiamo prezzo, anno, km e descrizione da soli.
+              </p>
+              <p class="nota-modo__riga">
+                <span aria-hidden="true">🔒</span> <strong>Non funziona</strong> con
+                <strong>Facebook Marketplace</strong>, Instagram, gruppi WhatsApp o Telegram: lì
+                l'annuncio si vede solo dopo il login, quindi dall'esterno si vede una schermata di
+                accesso e non l'annuncio. Per quelli serve l'altra scheda.
+                <button type="button" class="collegamento-modo" data-vai="materiale">
+                  Vai a Foto e descrizione →
+                </button>
+              </p>
+            </div>
+          </div>
+
+          <!-- 2) Foto e descrizione -->
+          <div class="modo" id="modoMateriale" hidden>
+            <div class="nota-modo nota-modo--testa">
+              <p>
+                <span aria-hidden="true">📸</span> Questa è la strada giusta per
+                <strong>Facebook Marketplace</strong>, Vinted, Instagram, gruppi WhatsApp — e in
+                generale ovunque serva il login. Funziona sempre, perché le foto le fai tu da dentro
+                l'app. Puoi caricare solo le foto, solo la descrizione, o entrambe: insieme è meglio.
+              </p>
+            </div>
+
             <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Carica le foto dell'annuncio">
               <input type="file" id="inputFile" accept="image/jpeg,image/png,image/webp" multiple hidden />
               <div class="dropzone__contenuto">
@@ -120,39 +166,22 @@
             </div>
 
             <p class="nota-modo" id="notaFoto" hidden>
-              <span aria-hidden="true">💡</span> Più foto = analisi migliore: aggiungi titolo con prezzo,
-              descrizione, scheda tecnica e la chat con il venditore. Le incoerenze fra una foto e l'altra
-              sono spesso il segnale di truffa più forte.
+              <span aria-hidden="true">💡</span> Più foto = analisi migliore: titolo con il prezzo,
+              descrizione, scheda tecnica e la chat con il venditore. Le incoerenze fra una foto e
+              l'altra sono spesso il segnale di truffa più forte.
             </p>
-          </div>
 
-          <!-- Link -->
-          <div class="modo" id="modoLink" hidden>
-            <label class="campo campo--input">
-              <span class="campo__etichetta">Indirizzo dell'annuncio</span>
-              <input
-                type="url"
-                id="inputLink"
-                inputmode="url"
-                autocomplete="off"
-                spellcheck="false"
-                placeholder="https://www.subito.it/auto/…"
-              />
+            <label class="campo campo--input campo--descrizione">
+              <span class="campo__etichetta">
+                Descrizione <em>(quello che le foto non dicono)</em>
+              </span>
+              <textarea
+                id="inputTesto"
+                maxlength="8000"
+                rows="5"
+                placeholder="Es. chiede 4.500 € trattabili, dice che è del 2016 con 90.000 km ma non manda il libretto. Mi ha scritto che parte per lavoro e vuole una caparra…"
+              ></textarea>
             </label>
-            <p class="nota-modo">
-              <span aria-hidden="true">💡</span> Alcuni siti bloccano la lettura automatica. Se il link
-              non funziona te lo diciamo subito: in quel caso lo screenshot va sempre bene.
-            </p>
-          </div>
-
-          <!-- Textarea -->
-          <div class="modo" id="modoTesto" hidden>
-            <textarea
-              id="inputTesto"
-              maxlength="8000"
-              rows="8"
-              placeholder="Incolla qui il testo dell'annuncio: titolo, prezzo, descrizione, km, anno, condizioni, cosa ti ha scritto il venditore…"
-            ></textarea>
             <div class="contatore"><span id="contatoreTesto">0</span> / 8000</div>
           </div>
         </article>

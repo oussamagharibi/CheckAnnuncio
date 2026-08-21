@@ -589,6 +589,25 @@ function validaImmagini(corpo) {
   return immagini;
 }
 
+// Siti che mostrano gli annunci solo a chi ha fatto il login: il web fetch
+// vedrebbe una schermata di accesso, non l'annuncio. Li fermiamo qui invece di
+// spendere una chiamata all'AI per scoprirlo.
+const HOST_CON_LOGIN = [
+  { dominio: 'facebook.com', nome: 'Facebook Marketplace' },
+  { dominio: 'fb.com', nome: 'Facebook' },
+  { dominio: 'instagram.com', nome: 'Instagram' },
+  { dominio: 'whatsapp.com', nome: 'WhatsApp' },
+  { dominio: 't.me', nome: 'Telegram' },
+  { dominio: 'telegram.me', nome: 'Telegram' },
+  { dominio: 'nextdoor.com', nome: 'Nextdoor' }
+];
+
+function sitoConLogin(host) {
+  return HOST_CON_LOGIN.find(
+    (s) => host === s.dominio || host.endsWith('.' + s.dominio)
+  );
+}
+
 // Host che non hanno senso per un annuncio pubblico: li rifiutiamo subito.
 const HOST_VIETATI = /^(localhost|.*\.local|.*\.internal|\[?::1\]?|127\..*|10\..*|192\.168\..*|169\.254\..*|172\.(1[6-9]|2\d|3[01])\..*)$/i;
 
@@ -623,6 +642,14 @@ function validaLink(valore) {
   const host = url.hostname.toLowerCase();
   if (!host.includes('.') || HOST_VIETATI.test(host)) {
     throw new ErroreUtente('link_non_valido', 'Questo indirizzo non è un annuncio pubblico raggiungibile.');
+  }
+
+  const conLogin = sitoConLogin(host);
+  if (conLogin) {
+    throw new ErroreUtente(
+      'link_richiede_login',
+      `Gli annunci di ${conLogin.nome} sono visibili solo a chi ha fatto l'accesso, quindi da qui non possiamo aprirli. Fai 2-3 screenshot dell'annuncio (titolo con il prezzo, descrizione, chat con il venditore) e caricali: funziona sempre.`
+    );
   }
 
   if (url.href.length > 2000) {
@@ -900,7 +927,7 @@ function costruisciContenutoUtente(dati) {
 
 const MESSAGGI_FETCH = {
   url_not_accessible:
-    "Non riusciamo ad aprire questo link: il sito blocca la lettura automatica oppure l'annuncio non esiste più.",
+    "Non riusciamo ad aprire questo link: il sito chiede il login, blocca la lettura automatica, oppure l'annuncio non esiste più.",
   unsupported_content_type: 'Questo link non porta a una pagina leggibile (potrebbe essere un file o un video).',
   too_many_requests: 'Il sito dell\'annuncio ci sta limitando le richieste. Riprova tra qualche minuto.',
   url_not_allowed: 'Questo indirizzo non può essere letto automaticamente.',

@@ -11,7 +11,7 @@
   var TIPI_AMMESSI = ['image/jpeg', 'image/png', 'image/webp'];
 
   var stato = {
-    modo: 'immagine',
+    modo: 'link', // 'link' | 'materiale' (foto + descrizione)
     immagini: [], // [{ dataUrl, tipo, nome, byte }] — massimo MAX_FOTO
     categoria: 'auto',
     zona: null,
@@ -38,9 +38,8 @@
   var svuotaFoto = $('svuotaFoto');
   var notaFoto = $('notaFoto');
   var dropzoneTitolo = $('dropzoneTitolo');
-  var modoImmagine = $('modoImmagine');
   var modoLink = $('modoLink');
-  var modoTesto = $('modoTesto');
+  var modoMateriale = $('modoMateriale');
   var inputLink = $('inputLink');
   var inputTesto = $('inputTesto');
   var contatoreTesto = $('contatoreTesto');
@@ -120,11 +119,19 @@
         v.classList.toggle('attivo', attivo);
         v.setAttribute('aria-selected', attivo ? 'true' : 'false');
       });
-      modoImmagine.hidden = stato.modo !== 'immagine';
       modoLink.hidden = stato.modo !== 'link';
-      modoTesto.hidden = stato.modo !== 'testo';
+      modoMateriale.hidden = stato.modo !== 'materiale';
       nascondiErrore();
       if (stato.modo === 'link') inputLink.focus();
+    });
+  });
+
+  // Scorciatoie dentro le note ("Passa alle foto"): fanno click sulla
+  // linguetta corrispondente, cosi' la logica di cambio scheda resta una sola.
+  Array.prototype.forEach.call(document.querySelectorAll('.collegamento-modo'), function (link) {
+    link.addEventListener('click', function () {
+      var voce = document.querySelector('.selettore__voce[data-modo="' + link.dataset.vai + '"]');
+      if (voce) voce.click();
     });
   });
 
@@ -331,7 +338,7 @@
 
   // Incolla direttamente uno screenshot dagli appunti
   window.addEventListener('paste', function (e) {
-    if (stato.modo !== 'immagine' || !e.clipboardData) return;
+    if (stato.modo !== 'materiale' || !e.clipboardData) return;
     var elementi = e.clipboardData.items || [];
     var file = null;
     for (var i = 0; i < elementi.length && !file; i++) {
@@ -471,9 +478,10 @@
   var timerFrasi = null;
 
   function avviaFrasi() {
-    var frasi = inputLink.value.trim()
-      ? ["Apro la pagina dell'annuncio…"].concat(FRASI)
-      : FRASI;
+    var frasi =
+      stato.modo === 'link' && inputLink.value.trim()
+        ? ["Apro la pagina dell'annuncio…"].concat(FRASI)
+        : FRASI;
     var indice = 0;
     fraseCaricamento.textContent = frasi[0];
     timerFrasi = setInterval(function () {
@@ -948,11 +956,15 @@
       });
     }
 
-    var testo = inputTesto.value.trim();
-    if (testo) corpo.testo = testo;
-
-    var link = inputLink.value.trim();
-    if (link) corpo.link = link;
+    // Solo il materiale della scheda attiva: se uno prova il link, poi passa
+    // alle foto, il link rimasto nel campo non deve viaggiare comunque.
+    if (stato.modo === 'link') {
+      var link = inputLink.value.trim();
+      if (link) corpo.link = link;
+    } else {
+      var testo = inputTesto.value.trim();
+      if (testo) corpo.testo = testo;
+    }
 
     var oggetto = inputOggetto.value.trim();
     if (stato.categoria === 'altro' && oggetto) corpo.oggetto = oggetto;
@@ -997,14 +1009,15 @@
     var testo = inputTesto.value.trim();
     var link = inputLink.value.trim();
 
-    if (stato.immagini.length === 0 && !link && testo.length < 20) {
-      if (stato.modo === 'link') {
-        mostraErrore("Incolla il link dell'annuncio (es. https://www.subito.it/…).");
-      } else if (stato.modo === 'testo') {
-        mostraErrore("Incolla il testo dell'annuncio: servono almeno 20 caratteri.");
-      } else {
-        mostraErrore("Carica almeno una foto dell'annuncio (oppure usa il link o il testo).");
-      }
+    // Ogni scheda chiede ciò che le compete: il link nella prima, foto o
+    // descrizione (almeno una delle due) nella seconda.
+    if (stato.modo === 'link' && !link) {
+      mostraErrore("Incolla il link dell'annuncio (es. https://www.subito.it/…).");
+      return;
+    }
+
+    if (stato.modo === 'materiale' && stato.immagini.length === 0 && testo.length < 20) {
+      mostraErrore('Carica almeno una foto, oppure scrivi una descrizione di almeno 20 caratteri.');
       return;
     }
 

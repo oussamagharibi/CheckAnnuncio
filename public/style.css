@@ -418,6 +418,77 @@ main {
   box-shadow: 0 2px 10px -4px rgba(0, 0, 0, 0.6);
 }
 
+/* Selettore a due vie: ogni voce dice cosa scegliere e per quali siti. */
+.selettore--doppio {
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 6px;
+}
+
+.selettore--doppio .selettore__voce {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  text-align: left;
+  padding: 12px 13px;
+  border: 1px solid transparent;
+}
+
+.selettore--doppio .selettore__voce.attivo {
+  border-color: rgba(46, 230, 168, 0.4);
+  background: rgba(46, 230, 168, 0.09);
+}
+
+.selettore__icona {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  font-size: 1.05rem;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--bordo);
+  transition: all var(--transizione);
+}
+
+.selettore__voce.attivo .selettore__icona {
+  background: rgba(46, 230, 168, 0.16);
+  border-color: rgba(46, 230, 168, 0.4);
+}
+
+.selettore__testi {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.selettore__testi strong {
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.selettore__testi small {
+  font-size: 0.73rem;
+  color: var(--testo-fioco);
+}
+
+.selettore__voce.attivo .selettore__testi strong {
+  color: #d6fff1;
+}
+
+.nota-modo--testa {
+  margin-top: 0;
+  margin-bottom: 14px;
+}
+
+.campo--descrizione {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px dashed var(--bordo);
+}
+
 /* ---------------- dropzone ---------------- */
 
 .dropzone {
@@ -662,12 +733,42 @@ input[type='text']:focus {
 .nota-modo {
   margin-top: 11px;
   font-size: 0.8rem;
-  line-height: 1.5;
+  line-height: 1.55;
   color: var(--testo-fioco);
-  padding: 11px 13px;
+  padding: 12px 14px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.025);
   border: 1px solid var(--bordo);
+}
+
+.nota-modo strong {
+  color: var(--testo-tenue);
+  font-weight: 600;
+}
+
+.nota-modo__riga {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--bordo);
+}
+
+.collegamento-modo {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--verde);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: opacity var(--transizione);
+}
+
+.collegamento-modo:hover {
+  opacity: 0.75;
 }
 
 input[type='number'] {
@@ -1819,6 +1920,14 @@ input[type='number']::-webkit-inner-spin-button {
   .selettore__voce {
     font-size: 0.85rem;
     padding: 9px 8px;
+  }
+
+  .selettore--doppio {
+    grid-template-columns: 1fr;
+  }
+
+  .selettore--doppio .selettore__voce {
+    padding: 11px 12px;
   }
 }
 

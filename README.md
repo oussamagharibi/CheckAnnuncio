@@ -6,7 +6,14 @@ Consulente d'acquisto per annunci di vendita usati (auto, telefoni, elettronica,
 
 Il posizionamento conta: la maggior parte degli annunci non è una truffa, ma può comunque essere un cattivo affare. Tre delle quattro schede di risultato sono consiglio d'acquisto, una sola è anti-truffa, e il prompt di sistema lo dice esplicitamente all'AI per evitare che tratti ogni venditore come un sospetto.
 
-L'annuncio si può fornire in tre modi: **screenshot**, **link** o **testo incollato**.
+L'annuncio si fornisce in **due modi**, divisi per *dove* l'hai trovato — che è la domanda che si fa davvero l'utente:
+
+| Scheda | Per quali siti | Cosa serve |
+| --- | --- | --- |
+| 🔗 **Ho il link** | Portali aperti a tutti: Subito, AutoScout24, Automobile.it, Kijiji, eBay | L'indirizzo dell'annuncio |
+| 📸 **Foto e descrizione** | Facebook Marketplace, Vinted, Instagram, gruppi WhatsApp — tutto ciò che richiede il login | Fino a 4 foto e/o una descrizione |
+
+La divisione non è estetica: i siti dietro login non sono leggibili dall'esterno per definizione, e prima erano tre schede che non spiegavano quale scegliere.
 
 - **Backend**: Node.js + Express, stateless (nessun database)
 - **Frontend**: pagina singola HTML/CSS/JS vanilla, in italiano, mobile-first
@@ -72,7 +79,7 @@ Se la chiave manca, il server parte comunque ma `/api/analizza` risponde con un 
 ### A. Dal browser (test completo)
 
 1. Apri http://localhost:3000
-2. Scegli come dare l'annuncio: trascina **da 1 a 4 foto** nella dropzone, incolla un **link** (scheda 🔗) o usa la scheda **Testo** con l'annuncio di prova qui sotto
+2. Scegli la scheda: **🔗 Ho il link** per Subito e simili, oppure **📸 Foto e descrizione** per Marketplace — lì puoi trascinare da 1 a 4 foto e scrivere i dettagli, anche solo una delle due cose
 3. Scegli la categoria **Auto**; se vuoi anche il giudizio "è adatta a me?", accendi l'interruttore e compila altezza / peso / zona / km annui / budget / neopatentato
 4. Premi **Analizza l'annuncio**
 
@@ -165,7 +172,7 @@ Errori: `400 domanda_vuota` · `410 sessione_mancante` · `410 sessione_scaduta`
 
 ### `POST /api/analizza`
 
-Body JSON (serve **almeno uno** tra `immagine`, `link` e `testo`):
+Body JSON (serve **almeno uno** tra `immagine`, `link` e `testo`). L'API resta libera di combinarli: è il sito a inviare il link *oppure* foto e descrizione, in base alla scheda scelta.
 
 | Campo               | Tipo    | Note                                                                 |
 | ------------------- | ------- | -------------------------------------------------------------------- |
@@ -227,6 +234,7 @@ Errori (sempre con un messaggio in italiano pronto da mostrare all'utente):
 | ----------- | ------------------------------------------ | -------------------------------------------- |
 | 400         | `categoria_mancante`, `contenuto_mancante`, `formato_non_supportato`, `immagine_non_valida`, `immagine_troppo_grande`, `troppe_immagini`, `immagini_troppo_grandi`, `link_non_valido`, `richiesta_rifiutata` | input non valido |
 | 400         | `link_non_leggibile`                       | il link è stato aperto ma non conteneva un annuncio leggibile |
+| 400         | `link_richiede_login`                      | dominio che mostra gli annunci solo agli utenti collegati (Facebook, Instagram, WhatsApp, Telegram) |
 | 413         | `immagini_troppo_grandi`                   | body oltre il limite (18 MB)                 |
 | 429         | `limite_raggiunto`                         | superato il rate limit giornaliero           |
 | 502         | `json_non_valido`, `chiave_non_valida`     | l'AI non ha prodotto JSON valido dopo i retry |
@@ -350,6 +358,14 @@ Quando l'utente incolla un URL, il backend attiva il tool server-side **`web_fet
 4. **Guardia contro il fallimento silenzioso** — è lo scenario peggiore: la pagina risponde ma contiene un muro anti-bot, un login o un annuncio rimosso. Il prompt impone all'AI di iniziare il verdetto con `PAGINA_NON_LEGGIBILE:` in quel caso; il backend intercetta il marcatore e avvisa l'utente di usare lo screenshot.
 
 Il ciclo gestisce anche `stop_reason: "pause_turn"` (fino a `MAX_ITERAZIONI_TOOL` giri), che i tool server-side possono restituire quando il turno è lungo.
+
+### I siti dietro login non possono funzionare
+
+Facebook Marketplace, Instagram, WhatsApp, Telegram: lì l'annuncio è visibile solo a chi ha fatto l'accesso. Chi sta fuori vede una schermata di login, non l'annuncio — non è una protezione anti-bot da aggirare, è che la pagina *non esiste* per un visitatore anonimo.
+
+Questi domini sono in `HOST_CON_LOGIN` e vengono fermati in `validaLink()`, **prima** di chiamare l'AI: l'utente riceve subito `400 link_richiede_login` con l'invito a fare gli screenshot, e non si spende una richiesta per farsi restituire una schermata di accesso. Verificato: 4 link social bloccati, zero chiamate a pagamento.
+
+La scheda Link nel sito lo spiega in anticipo, con una scorciatoia che porta alla scheda Foto.
 
 ### Cosa funziona davvero (verificato)
 
