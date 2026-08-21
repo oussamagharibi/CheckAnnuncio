@@ -1063,6 +1063,14 @@ input[type='number']::-webkit-inner-spin-button {
   padding: 0;
 }
 
+.campo__facolt {
+  font-style: normal;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--testo-fioco);
+}
+
 .campo__etichetta em {
   font-style: normal;
   color: var(--testo-fioco);

@@ -218,7 +218,7 @@ Body JSON (serve **almeno uno** tra `immagine`, `link` e `testo`). L'API resta l
 
 | Campo               | Tipo    | Note                                                                 |
 | ------------------- | ------- | -------------------------------------------------------------------- |
-| `categoria`         | string  | **obbligatorio** — `auto` \| `telefono` \| `altro`                    |
+| `categoria`         | string  | **facoltativo** — `auto` \| `telefono` \| `altro`; se manca, la deduce l'AI dal materiale |
 | `oggetto`           | string  | cosa sta comprando, max 200 caratteri; nel sito compare scegliendo *Altro* |
 | `link`              | string  | URL dell'annuncio (http/https, max 2000 caratteri); lo schema può essere omesso |
 | `immagine`          | string  | una sola foto, retrocompatibile — equivale a `immagini` con un elemento |
@@ -274,7 +274,7 @@ Errori (sempre con un messaggio in italiano pronto da mostrare all'utente):
 
 | Codice HTTP | `errore`                                   | Quando                                       |
 | ----------- | ------------------------------------------ | -------------------------------------------- |
-| 400         | `categoria_mancante`, `contenuto_mancante`, `formato_non_supportato`, `immagine_non_valida`, `immagine_troppo_grande`, `troppe_immagini`, `immagini_troppo_grandi`, `link_non_valido`, `richiesta_rifiutata` | input non valido |
+| 400         | `contenuto_mancante`, `formato_non_supportato`, `immagine_non_valida`, `immagine_troppo_grande`, `troppe_immagini`, `immagini_troppo_grandi`, `link_non_valido`, `richiesta_rifiutata` | input non valido |
 | 400         | `link_non_leggibile`                       | il link è stato aperto ma non conteneva un annuncio leggibile |
 | 400         | `link_richiede_login`                      | dominio che mostra gli annunci solo agli utenti collegati (Facebook, Instagram, WhatsApp, Telegram) |
 | 413         | `immagini_troppo_grandi`                   | body oltre il limite (18 MB)                 |

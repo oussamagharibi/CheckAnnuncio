@@ -433,6 +433,10 @@ Non stai valutando un annuncio: stai valutando il PRODOTTO in sé. Nessuno ti st
 
 ## Come ragionare
 
+**Il prodotto scritto dall'utente comanda sempre.** Il "tipo di prodotto" che ti arriva è solo un suggerimento e può essere sbagliato o lasciato lì per distrazione. Se il prodotto scritto non c'entra con il tipo dichiarato — per esempio tipo "auto" ma prodotto "divano" — IGNORA il tipo e fai la scheda del prodotto che l'utente ha davvero scritto. Non rispondere MAI "non applicabile" e non lasciare campi vuoti per questo motivo: la scheda va fatta comunque, su ciò che l'utente ti ha chiesto.
+
+**Se il prodotto è generico** ("divano", "telefono", "trapano") fai comunque una scheda utile di quella categoria di prodotto — pregi e difetti tipici, cosa distingue un buon esemplare, fascia di prezzo — e nella sintesi chiedi di precisare marca e modello per una valutazione più mirata. Una scheda generica ma utile è sempre meglio di un rifiuto.
+
 **Identifica bene il modello.** L'utente può essere vago ("Golf 7", "iPhone 13") o preciso ("Golf 7 1.6 TDI 110 CV Comfortline 2016"). Riporta in "prodotto" la versione normalizzata e completa che hai capito, con gli anni di produzione. Se l'indicazione è ambigua e cambia molto la risposta (per esempio "Golf" senza generazione, o una motorizzazione che esiste in versioni molto diverse), scegli la variante più diffusa in Italia, dillo nella sintesi e invita a precisare.
 
 **Sii onesto sui difetti.** La parte utile della scheda sono i contro e i problemi noti. Un prodotto senza difetti non esiste: se l'elenco dei contro è corto e generico, la scheda non serve a niente. Non ammorbidire.
@@ -570,7 +574,13 @@ function costruisciPromptUtente(dati, adesso) {
   righe.push('');
   righe.push('Analizza questo annuncio.');
   righe.push('');
-  righe.push(`Categoria dichiarata dall'utente: ${dati.categoria}`);
+  if (dati.categoria) {
+    righe.push(
+      `Categoria indicata dall'utente: ${dati.categoria}. È solo un'indicazione di massima: se il materiale mostra chiaramente un altro tipo di oggetto, IGNORALA e analizza quello che vedi davvero.`
+    );
+  } else {
+    righe.push("L'utente non ha indicato una categoria: deducila tu dal materiale.");
+  }
 
   if (dati.oggetto) {
     righe.push(`Cosa sta comprando, secondo l'utente: ${dati.oggetto}`);
@@ -822,10 +832,11 @@ function validaRichiesta(corpo) {
     throw new ErroreUtente('richiesta_non_valida', 'Richiesta non valida. Ricarica la pagina e riprova.');
   }
 
-  const categoria = typeof corpo.categoria === 'string' ? corpo.categoria.toLowerCase() : '';
-  if (!CATEGORIE.includes(categoria)) {
-    throw new ErroreUtente('categoria_mancante', 'Scegli una categoria: Auto, Telefono o Altro.');
-  }
+  // Facoltativa: se l'utente non la sceglie, la deduce l'AI dal materiale.
+  // Prima era obbligatoria con "auto" preselezionato nel sito, e chi vendeva
+  // un divano si ritrovava un'analisi che parlava di automobili.
+  const grezzaCategoria = typeof corpo.categoria === 'string' ? corpo.categoria.toLowerCase() : '';
+  const categoria = CATEGORIE.includes(grezzaCategoria) ? grezzaCategoria : null;
 
   let testo = typeof corpo.testo === 'string' ? corpo.testo.trim() : '';
   if (testo.length > MAX_TESTO_CARATTERI) {

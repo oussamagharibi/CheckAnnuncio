@@ -13,12 +13,12 @@
   var stato = {
     modo: 'link', // 'link' | 'materiale' (foto + descrizione)
     immagini: [], // [{ dataUrl, tipo, nome, byte }] — massimo MAX_FOTO
-    categoria: 'auto',
+    categoria: null, // nessun default: lo deduce l'AI dal materiale
     zona: null,
     neopatentato: null,
     inCorso: false,
     strumento: 'annuncio', // 'annuncio' | 'modello' | 'consiglio'
-    tipoModello: 'auto',
+    tipoModello: null,
     sessione: null,        // id della conversazione aperta dall'analisi
     domandeRimaste: 0,
     domandaInCorso: false
@@ -509,20 +509,16 @@
     extraAltro.classList.toggle('aperto', stato.categoria === 'altro');
   }
 
-  collegaChip(
-    'gruppoCategoria',
-    function (valore) {
-      stato.categoria = valore || 'auto';
-      aggiornaCampiCategoria();
-      nascondiErrore();
-      if (stato.categoria === 'altro') {
-        setTimeout(function () {
-          inputOggetto.focus();
-        }, 380);
-      }
-    },
-    true
-  );
+  collegaChip('gruppoCategoria', function (valore) {
+    stato.categoria = valore;
+    aggiornaCampiCategoria();
+    nascondiErrore();
+    if (stato.categoria === 'altro') {
+      setTimeout(function () {
+        inputOggetto.focus();
+      }, 380);
+    }
+  });
 
   flagProfilo.addEventListener('change', function () {
     aggiornaCampiCategoria();
@@ -535,13 +531,9 @@
     }
   });
 
-  collegaChip(
-    'gruppoTipoModello',
-    function (valore) {
-      stato.tipoModello = valore || 'auto';
-    },
-    true
-  );
+  collegaChip('gruppoTipoModello', function (valore) {
+    stato.tipoModello = valore;
+  });
 
   collegaChip('gruppoZona', function (valore) {
     stato.zona = valore;
@@ -1283,7 +1275,8 @@
   // ---------------------------------------------------------------
 
   function costruisciCorpo() {
-    var corpo = { categoria: stato.categoria };
+    var corpo = {};
+    if (stato.categoria) corpo.categoria = stato.categoria;
 
     if (stato.immagini.length > 0) {
       corpo.immagini = stato.immagini.map(function (i) {
@@ -1478,12 +1471,9 @@
       mostraErroreIn('modello', 'Scrivi marca e modello, per esempio "Golf 7 1.6 TDI 2016".');
       return;
     }
-    inviaScheda(
-      'modello',
-      '/api/modello',
-      { prodotto: prodotto, categoria: stato.tipoModello },
-      renderModello
-    );
+    var corpo = { prodotto: prodotto };
+    if (stato.tipoModello) corpo.categoria = stato.tipoModello;
+    inviaScheda('modello', '/api/modello', corpo, renderModello);
   });
 
   bottoneConsiglio.addEventListener('click', function () {
