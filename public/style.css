@@ -1,5 +1,5 @@
 /* =========================================================
-   CheckAnnuncio — stile
+   Sammy AI — stile
    Palette scura, accento teal (sicuro) / arancio-rosso (rischio)
    ========================================================= */
 
@@ -170,10 +170,25 @@ textarea {
   height: 20px;
 }
 
+.marchio__blocco {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+  min-width: 0;
+}
+
 .marchio__testo {
   font-weight: 600;
   font-size: 1.05rem;
   letter-spacing: -0.02em;
+}
+
+.marchio__claim {
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--testo-fioco);
 }
 
 .marchio__testo strong {

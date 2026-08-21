@@ -1,4 +1,6 @@
-# 🛡️ CheckAnnuncio
+# 🛡️ Sammy AI
+
+> **Nota sui nomi.** Il sito si chiama **Sammy AI**. Il repository, la cartella e il campo `name` in `package.json` restano `checkannuncio`: sono l'identità tecnica del progetto e cambiarli spezzerebbe il remote git e il deploy. Il nome vecchio non compare da nessuna parte nell'interfaccia.
 
 Sito anti-truffa che analizza con l'AI gli annunci di vendita (auto, telefoni, elettronica, qualunque cosa) e dice all'utente **quanto è rischioso**, **se il prezzo ha senso** e **cosa chiedere al venditore** prima di pagare.
 
@@ -13,7 +15,7 @@ L'annuncio si può fornire in tre modi: **screenshot**, **link** o **testo incol
 ## Struttura del progetto
 
 ```
-CheckAnnuncio/
+checkannuncio/            # cartella e repo mantengono il nome tecnico
 ├── server.js            # Server Express + chiamata all'AI + validazione JSON + rate limit
 ├── package.json         # Dipendenze e script "start"
 ├── .env.example         # Modello per il file .env (chiave API)

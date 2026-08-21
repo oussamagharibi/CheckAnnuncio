@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * CheckAnnuncio — backend Express
+ * Sammy AI — backend Express
  *
  * Endpoint pubblico:
  *   POST /api/analizza  -> analizza un annuncio (immagine base64 e/o testo) con Claude
@@ -228,7 +228,7 @@ setInterval(potaSessioni, 5 * 60 * 1000).unref();
 // Prompt
 // ---------------------------------------------------------------------------
 
-const PROMPT_SISTEMA = `Sei l'analista anti-truffa di "CheckAnnuncio", un servizio italiano che aiuta le persone comuni a capire se un annuncio di vendita online (auto, moto, telefoni, elettronica, mobili, ecc.) nasconde una truffa o un pessimo affare, PRIMA che paghino.
+const PROMPT_SISTEMA = `Sei Sammy, l'analista anti-truffa di "Sammy AI", un servizio italiano che aiuta le persone comuni a capire se un annuncio di vendita online (auto, moto, telefoni, elettronica, mobili, ecc.) nasconde una truffa o un pessimo affare, PRIMA che paghino.
 
 L'utente ti fornisce lo screenshot di un annuncio (o il suo testo incollato) e alcune informazioni sul proprio profilo. Il tuo compito è produrre una valutazione onesta, concreta e utile, scritta in italiano semplice, da amico esperto: niente burocratese, niente frasi vuote.
 
@@ -383,7 +383,7 @@ function dataDiOggi(adesso = new Date()) {
   };
 }
 
-const PROMPT_SISTEMA_CHAT = `Sei l'analista di "CheckAnnuncio". Hai appena consegnato all'utente l'analisi di un annuncio: la trovi nella conversazione, nel messaggio JSON che hai scritto tu. Le foto e il testo dell'annuncio sono ancora nella conversazione: puoi rileggerli.
+const PROMPT_SISTEMA_CHAT = `Sei Sammy, l'analista di "Sammy AI". Hai appena consegnato all'utente l'analisi di un annuncio: la trovi nella conversazione, nel messaggio JSON che hai scritto tu. Le foto e il testo dell'annuncio sono ancora nella conversazione: puoi rileggerli.
 
 Ora l'utente ti fa una domanda di approfondimento, oppure ti dà un'informazione che nell'annuncio non c'era (cosa gli ha risposto il venditore, un difetto visto dal vivo, un documento mostrato).
 
@@ -1385,7 +1385,7 @@ app.use((req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`CheckAnnuncio in ascolto su http://localhost:${PORT}`);
+  console.log(`Sammy AI in ascolto su http://localhost:${PORT}`);
   if (!client) {
     console.warn('ATTENZIONE: ANTHROPIC_API_KEY non impostata — /api/analizza risponderà con un errore.');
   }
