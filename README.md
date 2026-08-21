@@ -1,6 +1,6 @@
-# 🛡️ Sammy AI
+# 🛡️ Samah AI
 
-> **Nota sui nomi.** Il sito si chiama **Sammy AI**. Il repository, la cartella e il campo `name` in `package.json` restano `checkannuncio`: sono l'identità tecnica del progetto e cambiarli spezzerebbe il remote git e il deploy. Il nome vecchio non compare da nessuna parte nell'interfaccia.
+> **Nota sui nomi.** Il sito si chiama **Samah AI**. Il repository, la cartella e il campo `name` in `package.json` restano `checkannuncio`: sono l'identità tecnica del progetto e cambiarli spezzerebbe il remote git e il deploy. Il nome vecchio non compare da nessuna parte nell'interfaccia.
 
 Consulente d'acquisto per annunci di vendita usati (auto, telefoni, elettronica, qualunque cosa). Analizza l'annuncio con l'AI e dice all'utente **se il prezzo è giusto**, **che difetti ha davvero quel modello**, **quanto è alto il rischio truffa** e **cosa chiedere al venditore** — prima di pagare.
 

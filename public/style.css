@@ -1,5 +1,5 @@
 /* =========================================================
-   Sammy AI — stile
+   Samah AI — stile
    Palette scura, accento teal (sicuro) / arancio-rosso (rischio)
    ========================================================= */
 
@@ -193,7 +193,7 @@ textarea {
 .marchio__testo {
   font-weight: 700;
   font-size: 1.6rem;
-  letter-spacing: -0.035em;
+  letter-spacing: 0.005em;
 }
 
 .marchio__claim {

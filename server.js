@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Sammy AI — backend Express
+ * Samah AI — backend Express
  *
  * Endpoint pubblico:
  *   POST /api/analizza  -> analizza un annuncio (immagine base64 e/o testo) con Claude
@@ -252,7 +252,7 @@ setInterval(potaSessioni, 5 * 60 * 1000).unref();
 // Prompt
 // ---------------------------------------------------------------------------
 
-const PROMPT_SISTEMA = `Sei Sammy, l'analista di "Sammy AI", un servizio italiano che aiuta le persone comuni a capire se un annuncio di vendita online (auto, moto, telefoni, elettronica, mobili, ecc.) è un buon affare — prezzo onesto, oggetto senza difetti nascosti — oppure se nasconde una fregatura o una truffa vera e propria. Tutto PRIMA che paghino.
+const PROMPT_SISTEMA = `Ti chiami Samah e sei l'analista di "Samah AI", un servizio italiano che aiuta le persone comuni a capire se un annuncio di vendita online (auto, moto, telefoni, elettronica, mobili, ecc.) è un buon affare — prezzo onesto, oggetto senza difetti nascosti — oppure se nasconde una fregatura o una truffa vera e propria. Tutto PRIMA che paghino.
 
 Il tuo lavoro è per tre quarti consiglio d'acquisto e per un quarto difesa dalle truffe: la maggior parte degli annunci non è una truffa, ma può comunque essere un cattivo affare. Non trattare ogni venditore come un sospetto.
 
@@ -409,7 +409,7 @@ function dataDiOggi(adesso = new Date()) {
   };
 }
 
-const PROMPT_SISTEMA_CHAT = `Sei Sammy, l'analista di "Sammy AI". Hai appena consegnato all'utente una valutazione: la trovi nella conversazione, nel messaggio JSON che hai scritto tu. Può essere l'analisi di un annuncio (con foto e testo, che sono ancora nella conversazione e puoi rileggere) oppure la scheda di un modello di prodotto.
+const PROMPT_SISTEMA_CHAT = `Ti chiami Samah e sei l'analista di "Samah AI". Hai appena consegnato all'utente una valutazione: la trovi nella conversazione, nel messaggio JSON che hai scritto tu. Può essere l'analisi di un annuncio (con foto e testo, che sono ancora nella conversazione e puoi rileggere) oppure la scheda di un modello di prodotto.
 
 Ora l'utente ti fa una domanda di approfondimento, oppure ti dà un'informazione che prima non avevi (cosa gli ha risposto il venditore, un difetto visto dal vivo, una versione diversa del prodotto che sta valutando).
 
@@ -427,7 +427,7 @@ Come rispondere:
 
 const CATEGORIE_MODELLO = ['auto', 'moto', 'telefono', 'pc', 'altro'];
 
-const PROMPT_SISTEMA_MODELLO = `Sei Sammy, l'esperto di "Sammy AI". L'utente ti dice un prodotto — un'auto, una moto, uno smartphone, un computer, un elettrodomestico — e tu gli fai la scheda onesta di QUEL modello: cosa ha di buono, cosa ha di brutto, cosa si rompe e quanto dovrebbe costare oggi sull'usato in Italia.
+const PROMPT_SISTEMA_MODELLO = `Ti chiami Samah e sei l'esperto di "Samah AI". L'utente ti dice un prodotto — un'auto, una moto, uno smartphone, un computer, un elettrodomestico — e tu gli fai la scheda onesta di QUEL modello: cosa ha di buono, cosa ha di brutto, cosa si rompe e quanto dovrebbe costare oggi sull'usato in Italia.
 
 Non stai valutando un annuncio: stai valutando il PRODOTTO in sé. Nessuno ti sta cercando di truffare, quindi non parlare di truffe.
 
@@ -496,7 +496,7 @@ function costruisciPromptModello(dati, adesso) {
   return righe.join("\n");
 }
 
-const PROMPT_SISTEMA_CONSIGLIO = `Sei Sammy, il consulente d'acquisto di "Sammy AI". L'utente non ti dice quale prodotto vuole: ti racconta un PROBLEMA che ha in casa, in auto, al lavoro. Tu capisci di cosa ha davvero bisogno e gli proponi le strade possibili.
+const PROMPT_SISTEMA_CONSIGLIO = `Ti chiami Samah e sei il consulente d'acquisto di "Samah AI". L'utente non ti dice quale prodotto vuole: ti racconta un PROBLEMA che ha in casa, in auto, al lavoro. Tu capisci di cosa ha davvero bisogno e gli proponi le strade possibili.
 
 Esempio del tono giusto: "ho problemi con la polvere dei gatti in casa" non si risolve dicendo "compra un aspirapolvere". Si risolve spiegando che il pelo di gatto si accumula ogni giorno e serve qualcosa di quotidiano e automatico, che i tessuti trattengono più del pavimento, e che un purificatore attacca il problema da un lato diverso rispetto a un robot aspirapolvere. Poi si propongono le opzioni, con i loro compromessi.
 
@@ -1892,7 +1892,7 @@ app.use((req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Sammy AI in ascolto su http://localhost:${PORT}`);
+  console.log(`Samah AI in ascolto su http://localhost:${PORT}`);
   if (!client) {
     console.warn('ATTENZIONE: ANTHROPIC_API_KEY non impostata — /api/analizza risponderà con un errore.');
   }
