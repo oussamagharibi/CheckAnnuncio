@@ -6,6 +6,22 @@ Consulente d'acquisto per annunci di vendita usati (auto, telefoni, elettronica,
 
 Il posizionamento conta: la maggior parte degli annunci non è una truffa, ma può comunque essere un cattivo affare. Tre delle quattro schede di risultato sono consiglio d'acquisto, una sola è anti-truffa, e il prompt di sistema lo dice esplicitamente all'AI per evitare che tratti ogni venditore come un sospetto.
 
+## Tre strumenti
+
+Il sito parte dalla domanda "a che punto sei?", non dal prodotto:
+
+| Strumento | Quando serve | Endpoint |
+| --- | --- | --- |
+| 🔍 **Analizza un annuncio** | Hai trovato qualcosa in vendita | `POST /api/analizza` |
+| ⭐ **Scheda di un modello** | Sai cosa vuoi, ma com'è fatto davvero? | `POST /api/modello` |
+| 💡 **Cosa mi serve?** | Hai un problema e non sai cosa comprare | `POST /api/consiglio` |
+
+Tutti e tre aprono una conversazione di approfondimento (`POST /api/domanda`) e **condividono lo stesso contatore giornaliero**: sono tutte richieste all'AI, e tenerne uno solo evita di moltiplicare il tetto di spesa aprendo nuovi strumenti.
+
+---
+
+## Analizza un annuncio
+
 L'annuncio si fornisce in **due modi**, divisi per *dove* l'hai trovato — che è la domanda che si fa davvero l'utente:
 
 | Scheda | Per quali siti | Cosa serve |
@@ -157,13 +173,39 @@ node --check public/app.js
 
 ## API
 
-### `POST /api/domanda`
+### `POST /api/modello`
 
-Continua la conversazione aperta da un'analisi.
+Scheda di un prodotto, senza bisogno di un annuncio.
 
 | Campo | Tipo | Note |
 | --- | --- | --- |
-| `sessione` | string | **obbligatorio** — l'id restituito da `/api/analizza` |
+| `prodotto` | string | **obbligatorio** — marca, modello e versione; min 2 caratteri, max 120 |
+| `categoria` | string | `auto` \| `moto` \| `telefono` \| `pc` \| `altro` |
+
+Risposta `200`: `prodotto`, `voto` (1-10), `sintesi`, `pro[]`, `contro[]`, `problemi[]`, `prezzo{min,max,nota}`, `consiglio`, più `sessione` e `domandeRimaste` per la chat.
+
+Errori: `400 prodotto_mancante` · `429 limite_raggiunto` · `502 json_non_valido`
+
+### `POST /api/consiglio`
+
+Consiglio d'acquisto a partire da un problema descritto a parole.
+
+| Campo | Tipo | Note |
+| --- | --- | --- |
+| `problema` | string | **obbligatorio** — min 10 caratteri, max 600 |
+| `budget` | number | facoltativo, euro |
+
+Risposta `200`: `bisogno`, `soluzioni[]` (2-4, con `tipo`, `perche`, `esempi[]`, `prezzoMin`, `prezzoMax`, `attenzione`), `criteri[]`, `daEvitare`, più `sessione` e `domandeRimaste`.
+
+Errori: `400 problema_mancante` · `429 limite_raggiunto` · `502 json_non_valido`
+
+### `POST /api/domanda`
+
+Continua la conversazione aperta da uno qualsiasi dei tre strumenti.
+
+| Campo | Tipo | Note |
+| --- | --- | --- |
+| `sessione` | string | **obbligatorio** — l'id restituito da `/api/analizza`, `/api/modello` o `/api/consiglio` |
 | `domanda` | string | **obbligatorio** — min 3 caratteri, max 600 |
 
 Risposta `200`: `{ "risposta": "…", "domandeRimaste": 3 }`
@@ -478,6 +520,35 @@ Se un domani vuoi tornare indietro, le leve sono nel prompt di sistema (le righe
 - **Il prompt caching qui non conviene.** Il prompt di sistema è ~1.800 token: scriverlo in cache costa $3,75/M e rileggerlo $0,30/M, ma la cache dura 5 minuti. Con traffico sporadico si pagherebbe la scrittura senza quasi mai rileggere, cioè più di adesso. Avrebbe senso solo con richieste molto ravvicinate e continue.
 
 Attenzione: **anche le analisi fallite consumano token** e vengono contate nel log (il `finally` nella rotta), ma **non** scalano il rate limit dell'utente.
+
+---
+
+## Scheda di un modello
+
+Input: tipo di prodotto (auto / moto / telefono / PC / altro) e una stringa libera — `Golf 7 1.6 TDI 2016`, `iPhone 13 Pro 256GB`, `Honda CB500F`. Nessun annuncio richiesto.
+
+Output: il modello **normalizzato** con gli anni di produzione, un voto da 1 a 10 ("quanto conviene comprarlo oggi sull'usato"), 3-5 pro, 3-5 contro, i problemi noti con costo di riparazione, la forbice di prezzo sull'usato italiano e a chi conviene o non conviene.
+
+Il prompt insiste su un punto: **la parte utile sono i contro**. Un elenco di difetti corto e generico rende la scheda inutile, quindi è vietato ammorbidire.
+
+Verificato su quattro categorie: Golf 7 TDI (7/10, FAP ed EGR come problema grave), iPhone 13 Pro (7/10, fine supporto software imminente), ThinkPad T480 (6/10, batterie degradate), Honda CB500F (7/10, frenata anteriore mediocre di serie).
+
+---
+
+## Cosa mi serve? — consiglio da un problema
+
+Input: il problema a parole tue, più un budget facoltativo. Output: 2-4 **strade diverse fra loro** ordinate dalla più consigliata, ognuna con il suo compromesso onesto, i criteri numerici da controllare prima di comprare, e cosa evitare.
+
+Due regole che cambiano la qualità della risposta:
+
+- **Prima la causa, poi l'acquisto.** Se il problema si risolve a monte (un filtro mai cambiato, una finestra che non chiude), il prompt impone di dirlo *prima* di proporre prodotti: a volte la soluzione giusta costa zero.
+- **Strade diverse, non varianti.** Quattro modelli di robot aspirapolvere non sono quattro soluzioni.
+
+Prova reale, "muffa e condensa in camera da letto": deumidificatore (150-280 €), VMC (400-900 €), trattamento antimuffa con aerazione manuale (30-120 €) e assorbiumidità passivi (8-40 €) — con la soluzione più economica messa alla pari delle altre, non nascosta.
+
+Sul caso dei gatti: riconosce il Fel d 1 come vero bersaglio, chiede HEPA H13 e un CADR di almeno 300 m³/h per 90 mq, e avverte che nessun singolo prodotto basta.
+
+Costi misurati: **$0,022-0,029** a scheda, meno di un'analisi di annuncio.
 
 ---
 

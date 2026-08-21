@@ -17,6 +17,8 @@
     zona: null,
     neopatentato: null,
     inCorso: false,
+    strumento: 'annuncio', // 'annuncio' | 'modello' | 'consiglio'
+    tipoModello: 'auto',
     sessione: null,        // id della conversazione aperta dall'analisi
     domandeRimaste: 0,
     domandaInCorso: false
@@ -58,6 +60,18 @@
   var risultati = $('risultati');
   var zonaForm = $('zonaForm');
   var toast = $('toast');
+  var zonaModello = $('zonaModello');
+  var zonaConsiglio = $('zonaConsiglio');
+  var risultatiModello = $('risultatiModello');
+  var risultatiConsiglio = $('risultatiConsiglio');
+  var zonaChat = $('zonaChat');
+  var zonaRicomincia = $('zonaRicomincia');
+  var bottoneModello = $('bottoneModello');
+  var bottoneConsiglio = $('bottoneConsiglio');
+  var inputProdotto = $('inputProdotto');
+  var inputProblema = $('inputProblema');
+  var inputBudgetConsiglio = $('inputBudgetConsiglio');
+  var contatoreProblema = $('contatoreProblema');
   var cardChat = $('cardChat');
   var chat = $('chat');
   var formChat = $('formChat');
@@ -106,6 +120,50 @@
     var v = parseInt(input.value, 10);
     return Number.isFinite(v) ? v : null;
   }
+
+  // ---------------------------------------------------------------
+  // Scelta dello strumento
+  // ---------------------------------------------------------------
+
+  function mostraErroreIn(strumento, messaggio) {
+    if (strumento === 'modello') {
+      $('testoErroreModello').textContent = messaggio;
+      $('avvisoErroreModello').hidden = false;
+    } else if (strumento === 'consiglio') {
+      $('testoErroreConsiglio').textContent = messaggio;
+      $('avvisoErroreConsiglio').hidden = false;
+    } else {
+      mostraErrore(messaggio);
+    }
+  }
+
+  function nascondiErrori() {
+    nascondiErrore();
+    $('avvisoErroreModello').hidden = true;
+    $('avvisoErroreConsiglio').hidden = true;
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('.strumento'), function (voce) {
+    voce.addEventListener('click', function () {
+      if (stato.inCorso) return;
+      stato.strumento = voce.dataset.strumento;
+
+      Array.prototype.forEach.call(document.querySelectorAll('.strumento'), function (v) {
+        var attivo = v === voce;
+        v.classList.toggle('attivo', attivo);
+        v.setAttribute('aria-selected', attivo ? 'true' : 'false');
+      });
+
+      zonaForm.hidden = stato.strumento !== 'annuncio';
+      zonaModello.hidden = stato.strumento !== 'modello';
+      zonaConsiglio.hidden = stato.strumento !== 'consiglio';
+
+      // Cambiare strumento azzera i risultati precedenti: lasciarli sotto un
+      // pannello diverso da quello che li ha prodotti confonderebbe.
+      nascondiRisultati();
+      nascondiErrori();
+    });
+  });
 
   // ---------------------------------------------------------------
   // Selettore screenshot / testo
@@ -374,6 +432,36 @@
   });
 
   // ---------------------------------------------------------------
+  // Scheda modello e consiglio: campi
+  // ---------------------------------------------------------------
+
+  inputProblema.addEventListener('input', function () {
+    contatoreProblema.textContent = String(inputProblema.value.length);
+    if (inputProblema.value.trim().length > 0) nascondiErrori();
+  });
+
+  inputProdotto.addEventListener('input', function () {
+    if (inputProdotto.value.trim().length > 0) nascondiErrori();
+  });
+
+  inputProdotto.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      bottoneModello.click();
+    }
+  });
+
+  // Gli esempi riempiono il campo invece di inviare: vanno adattati al caso proprio.
+  Array.prototype.forEach.call($('esempiProblema').querySelectorAll('.suggerimento'), function (chip) {
+    chip.addEventListener('click', function () {
+      inputProblema.value = chip.dataset.testo;
+      contatoreProblema.textContent = String(inputProblema.value.length);
+      inputProblema.focus();
+      nascondiErrori();
+    });
+  });
+
+  // ---------------------------------------------------------------
   // Link
   // ---------------------------------------------------------------
 
@@ -447,6 +535,14 @@
     }
   });
 
+  collegaChip(
+    'gruppoTipoModello',
+    function (valore) {
+      stato.tipoModello = valore || 'auto';
+    },
+    true
+  );
+
   collegaChip('gruppoZona', function (valore) {
     stato.zona = valore;
   });
@@ -477,11 +573,31 @@
 
   var timerFrasi = null;
 
+  var FRASI_MODELLO = [
+    'Identifico la versione esatta…',
+    'Raccolgo i difetti noti di questo modello…',
+    "Controllo i prezzi dell'usato…",
+    'Peso pro e contro…',
+    'Ci siamo quasi…'
+  ];
+
+  var FRASI_CONSIGLIO = [
+    'Capisco di cosa hai bisogno davvero…',
+    'Cerco le strade possibili…',
+    'Confronto i compromessi…',
+    'Controllo i prezzi…',
+    'Ci siamo quasi…'
+  ];
+
   function avviaFrasi() {
-    var frasi =
-      stato.modo === 'link' && inputLink.value.trim()
-        ? ["Apro la pagina dell'annuncio…"].concat(FRASI)
-        : FRASI;
+    var frasi;
+    if (stato.strumento === 'modello') frasi = FRASI_MODELLO;
+    else if (stato.strumento === 'consiglio') frasi = FRASI_CONSIGLIO;
+    else
+      frasi =
+        stato.modo === 'link' && inputLink.value.trim()
+          ? ["Apro la pagina dell'annuncio…"].concat(FRASI)
+          : FRASI;
     var indice = 0;
     fraseCaricamento.textContent = frasi[0];
     timerFrasi = setInterval(function () {
@@ -784,7 +900,8 @@
     var esaurite = stato.domandeRimaste <= 0;
     inputDomanda.disabled = esaurite || stato.domandaInCorso;
     bottoneDomanda.disabled = esaurite || stato.domandaInCorso;
-    suggerimenti.hidden = esaurite || chat.children.length > 0;
+    suggerimenti.hidden =
+      stato.strumento !== 'annuncio' || esaurite || chat.children.length > 0;
 
     if (esaurite) {
       notaChat.textContent =
@@ -882,13 +999,27 @@
     });
   });
 
+  var INTRO_CHAT = {
+    annuncio:
+      "Il venditore ti ha risposto? Hai notato un dettaglio che nelle foto non c'era? Scrivilo qui: continuo da dove siamo rimasti, senza rifare tutto da capo.",
+    modello:
+      'Vuoi sapere di una versione diversa, di un allestimento, o come si confronta con un altro modello? Chiedimelo qui.',
+    consiglio:
+      'Nessuna delle strade ti convince, o hai un vincolo che non ti ho chiesto? Dimmelo e rivedo il consiglio.'
+  };
+
+  // I suggerimenti rapidi hanno senso solo sull'analisi di un annuncio.
   function preparaChat(dati) {
     stato.sessione = dati.sessione || null;
     stato.domandeRimaste = typeof dati.domandeRimaste === 'number' ? dati.domandeRimaste : 0;
     chat.innerHTML = '';
     inputDomanda.value = '';
     inputDomanda.placeholder = 'Scrivi qui la tua domanda o quello che hai scoperto…';
+    $('introChat').textContent = INTRO_CHAT[stato.strumento] || INTRO_CHAT.annuncio;
+    suggerimenti.hidden = stato.strumento !== 'annuncio';
     cardChat.hidden = !stato.sessione;
+    zonaChat.hidden = !stato.sessione;
+    zonaRicomincia.hidden = !stato.sessione;
     aggiornaStatoChat();
   }
 
@@ -909,6 +1040,213 @@
 
     setTimeout(function () {
       scrollA(risultati);
+    }, 80);
+  }
+
+  // ---------------------------------------------------------------
+  // Render: scheda di un modello
+  // ---------------------------------------------------------------
+
+  function etichettaVoto(voto) {
+    if (voto <= 3) return 'Da lasciar perdere';
+    if (voto <= 5) return 'Con riserva';
+    if (voto <= 7) return 'Buon acquisto';
+    if (voto <= 8) return 'Ottima scelta';
+    return 'Fuoriclasse';
+  }
+
+  function coloreVoto(voto) {
+    if (voto <= 3) return 'var(--rosso)';
+    if (voto <= 5) return 'var(--arancio)';
+    if (voto <= 7) return 'var(--giallo)';
+    return 'var(--verde)';
+  }
+
+  function riempiPunti(lista, voci, ritardoBase) {
+    lista.innerHTML = '';
+    voci.forEach(function (voce, i) {
+      var li = document.createElement('li');
+      li.className = 'punto';
+      li.style.setProperty('--ritardo-riga', ritardoBase + i * 70 + 'ms');
+      var titolo = document.createElement('strong');
+      titolo.textContent = voce.titolo;
+      li.appendChild(titolo);
+      if (voce.dettaglio) {
+        var dettaglio = document.createElement('span');
+        dettaglio.textContent = voce.dettaglio;
+        li.appendChild(dettaglio);
+      }
+      lista.appendChild(li);
+    });
+  }
+
+  function riempiProblemi(lista, problemi, ritardoBase) {
+    lista.innerHTML = '';
+    problemi.forEach(function (problema, i) {
+      var li = document.createElement('li');
+      li.className = 'problema problema--' + problema.gravita;
+      li.style.setProperty('--ritardo-riga', ritardoBase + i * 80 + 'ms');
+
+      var testata = document.createElement('div');
+      testata.className = 'problema__testata';
+      var componente = document.createElement('span');
+      componente.className = 'problema__componente';
+      componente.textContent = problema.componente;
+      var gravita = document.createElement('span');
+      gravita.className = 'gravita';
+      gravita.textContent = ETICHETTE_GRAVITA[problema.gravita] || 'Da valutare';
+      testata.appendChild(componente);
+      testata.appendChild(gravita);
+
+      var descrizione = document.createElement('p');
+      descrizione.className = 'problema__descrizione';
+      descrizione.textContent = problema.descrizione;
+
+      li.appendChild(testata);
+      li.appendChild(descrizione);
+
+      if (problema.verifica) {
+        var verifica = document.createElement('p');
+        verifica.className = 'problema__verifica';
+        var titolo = document.createElement('strong');
+        titolo.textContent = 'Come verificare:';
+        verifica.appendChild(titolo);
+        verifica.appendChild(document.createTextNode(' ' + problema.verifica));
+        li.appendChild(verifica);
+      }
+      lista.appendChild(li);
+    });
+  }
+
+  function formattaEuro(n) {
+    return Math.round(n).toLocaleString('it-IT') + ' €';
+  }
+
+  function renderModello(dati) {
+    $('titoloModello').textContent = dati.prodotto;
+    $('votoValore').textContent = String(dati.voto);
+    $('votoEtichetta').textContent = etichettaVoto(dati.voto);
+    $('cardModello').style.setProperty('--colore-rischio', coloreVoto(dati.voto));
+
+    var gauge = $('gaugeVoto');
+    gauge.style.width = '0%';
+    setTimeout(function () {
+      gauge.style.width = dati.voto * 10 + '%';
+    }, 260);
+
+    $('sintesiModello').textContent = dati.sintesi;
+    riempiPunti($('listaPro'), dati.pro, 320);
+    riempiPunti($('listaContro'), dati.contro, 360);
+
+    $('cardProblemiModello').hidden = dati.problemi.length === 0;
+    riempiProblemi($('listaProblemiModello'), dati.problemi, 420);
+
+    var prezzo = dati.prezzo;
+    if (prezzo.max > 0) {
+      $('fasciaPrezzo').textContent = formattaEuro(prezzo.min) + ' – ' + formattaEuro(prezzo.max);
+      $('fasciaPrezzo').hidden = false;
+    } else {
+      $('fasciaPrezzo').hidden = true;
+    }
+    $('notaPrezzo').textContent = prezzo.nota;
+    $('consiglioModello').textContent = dati.consiglio;
+
+    risultatiModello.hidden = false;
+    preparaChat(dati);
+    setTimeout(function () {
+      scrollA(risultatiModello);
+    }, 80);
+  }
+
+  // ---------------------------------------------------------------
+  // Render: consiglio a partire da un problema
+  // ---------------------------------------------------------------
+
+  function renderConsiglio(dati) {
+    $('testoBisogno').textContent = dati.bisogno;
+
+    var lista = $('listaSoluzioni');
+    lista.innerHTML = '';
+    dati.soluzioni.forEach(function (soluzione, i) {
+      var li = document.createElement('li');
+      li.className = 'soluzione';
+      li.style.setProperty('--ritardo-riga', 320 + i * 90 + 'ms');
+
+      var testata = document.createElement('div');
+      testata.className = 'soluzione__testata';
+      var tipo = document.createElement('span');
+      tipo.className = 'soluzione__tipo';
+      tipo.textContent = soluzione.tipo;
+      testata.appendChild(tipo);
+
+      if (soluzione.prezzoMax > 0) {
+        var prezzo = document.createElement('span');
+        prezzo.className = 'soluzione__prezzo';
+        prezzo.textContent =
+          soluzione.prezzoMin > 0 && soluzione.prezzoMin !== soluzione.prezzoMax
+            ? formattaEuro(soluzione.prezzoMin) + ' – ' + formattaEuro(soluzione.prezzoMax)
+            : formattaEuro(soluzione.prezzoMax);
+        testata.appendChild(prezzo);
+      }
+      li.appendChild(testata);
+
+      var perche = document.createElement('p');
+      perche.className = 'soluzione__perche';
+      perche.textContent = soluzione.perche;
+      li.appendChild(perche);
+
+      if (soluzione.esempi.length) {
+        var esempi = document.createElement('div');
+        esempi.className = 'soluzione__esempi';
+        soluzione.esempi.forEach(function (e) {
+          var chip = document.createElement('span');
+          chip.className = 'esempio';
+          chip.textContent = e;
+          esempi.appendChild(chip);
+        });
+        li.appendChild(esempi);
+      }
+
+      if (soluzione.attenzione) {
+        var nota = document.createElement('p');
+        nota.className = 'soluzione__attenzione';
+        var etichetta = document.createElement('strong');
+        etichetta.textContent = 'Attenzione:';
+        nota.appendChild(etichetta);
+        nota.appendChild(document.createTextNode(' ' + soluzione.attenzione));
+        li.appendChild(nota);
+      }
+
+      lista.appendChild(li);
+    });
+
+    var criteri = $('listaCriteri');
+    criteri.innerHTML = '';
+    dati.criteri.forEach(function (criterio, i) {
+      var li = document.createElement('li');
+      li.className = 'dettaglio';
+      li.style.setProperty('--ritardo-riga', 420 + i * 70 + 'ms');
+      var badge = document.createElement('span');
+      badge.className = 'badge badge--info';
+      badge.textContent = 'Controlla';
+      var testo = document.createElement('div');
+      testo.className = 'dettaglio__testo';
+      var titolo = document.createElement('strong');
+      titolo.textContent = criterio.titolo;
+      testo.appendChild(titolo);
+      testo.appendChild(document.createTextNode(criterio.dettaglio));
+      li.appendChild(badge);
+      li.appendChild(testo);
+      criteri.appendChild(li);
+    });
+
+    $('cardEvitare').hidden = !dati.daEvitare;
+    $('testoEvitare').textContent = dati.daEvitare;
+
+    risultatiConsiglio.hidden = false;
+    preparaChat(dati);
+    setTimeout(function () {
+      scrollA(risultatiConsiglio);
     }, 80);
   }
 
@@ -984,16 +1322,36 @@
     return corpo;
   }
 
+  var ETICHETTE_BOTTONE = {
+    annuncio: ["Analizza l'annuncio", 'Analisi in corso…'],
+    modello: ['Fammi la scheda', 'Ci sto lavorando…'],
+    consiglio: ['Consigliami', 'Ci penso…']
+  };
+
+  function bottoneDi(strumento) {
+    if (strumento === 'modello') return bottoneModello;
+    if (strumento === 'consiglio') return bottoneConsiglio;
+    return bottoneAnalizza;
+  }
+
+  function nascondiRisultati() {
+    risultati.hidden = true;
+    risultatiModello.hidden = true;
+    risultatiConsiglio.hidden = true;
+    zonaChat.hidden = true;
+    zonaRicomincia.hidden = true;
+  }
+
   function impostaCaricamento(attivo) {
     stato.inCorso = attivo;
-    bottoneAnalizza.disabled = attivo;
-    bottoneAnalizza.querySelector('.bottone__testo').textContent = attivo
-      ? 'Analisi in corso…'
-      : "Analizza l'annuncio";
+    var bottone = bottoneDi(stato.strumento);
+    var etichette = ETICHETTE_BOTTONE[stato.strumento];
+    bottone.disabled = attivo;
+    bottone.querySelector('.bottone__testo').textContent = attivo ? etichette[1] : etichette[0];
     caricamento.hidden = !attivo;
     if (attivo) {
       avviaFrasi();
-      risultati.hidden = true;
+      nascondiRisultati();
       setTimeout(function () {
         scrollA(caricamento);
       }, 60);
@@ -1063,12 +1421,96 @@
   });
 
   // ---------------------------------------------------------------
+  // Invio: scheda modello e consiglio
+  // ---------------------------------------------------------------
+
+  /**
+   * Percorso comune ai due strumenti che partono da testo: stessa gestione di
+   * loader, errori e crediti, cambia solo endpoint, corpo e render.
+   */
+  function inviaScheda(strumento, percorso, corpo, render) {
+    if (stato.inCorso) return;
+    nascondiErrori();
+    impostaCaricamento(true);
+
+    fetch(percorso, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(corpo)
+    })
+      .then(function (risposta) {
+        return risposta
+          .json()
+          .catch(function () {
+            return {};
+          })
+          .then(function (dati) {
+            return { ok: risposta.ok, stato: risposta.status, dati: dati };
+          });
+      })
+      .then(function (esito) {
+        impostaCaricamento(false);
+
+        if (!esito.ok) {
+          if (typeof esito.dati.analisiRimaste === 'number') {
+            aggiornaCrediti(esito.dati.analisiRimaste);
+          }
+          mostraErroreIn(
+            strumento,
+            esito.dati.messaggio ||
+              'Qualcosa è andato storto (errore ' + esito.stato + '). Riprova tra poco.'
+          );
+          return;
+        }
+
+        aggiornaCrediti(esito.dati.analisiRimaste);
+        render(esito.dati);
+      })
+      .catch(function () {
+        impostaCaricamento(false);
+        mostraErroreIn(strumento, 'Connessione assente o interrotta. Controlla la rete e riprova.');
+      });
+  }
+
+  bottoneModello.addEventListener('click', function () {
+    var prodotto = inputProdotto.value.trim();
+    if (prodotto.length < 2) {
+      mostraErroreIn('modello', 'Scrivi marca e modello, per esempio "Golf 7 1.6 TDI 2016".');
+      return;
+    }
+    inviaScheda(
+      'modello',
+      '/api/modello',
+      { prodotto: prodotto, categoria: stato.tipoModello },
+      renderModello
+    );
+  });
+
+  bottoneConsiglio.addEventListener('click', function () {
+    var problema = inputProblema.value.trim();
+    if (problema.length < 10) {
+      mostraErroreIn('consiglio', 'Racconta il problema in una frase: servono almeno 10 caratteri.');
+      return;
+    }
+    var corpo = { problema: problema };
+    var budget = numeroValido(inputBudgetConsiglio);
+    if (budget) corpo.budget = budget;
+    inviaScheda('consiglio', '/api/consiglio', corpo, renderConsiglio);
+  });
+
+  // ---------------------------------------------------------------
   // Nuova analisi
   // ---------------------------------------------------------------
 
   $('nuovaAnalisi').addEventListener('click', function () {
-    risultati.hidden = true;
-    nascondiErrore();
-    scrollA(zonaForm);
+    nascondiRisultati();
+    nascondiErrori();
+    var pannello =
+      stato.strumento === 'modello'
+        ? zonaModello
+        : stato.strumento === 'consiglio'
+          ? zonaConsiglio
+          : zonaForm;
+    scrollA(pannello);
   });
 })();

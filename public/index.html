@@ -56,9 +56,9 @@
           <span class="gradiente">Scoprilo prima di pagare</span>
         </h1>
         <p class="hero__sottotitolo">
-          Carica un annuncio — auto, telefono, qualsiasi cosa. Ti diciamo <strong>se il prezzo è
-          giusto</strong>, <strong>che difetti ha davvero quel modello</strong> e <strong>se c'è aria
-          di truffa</strong>. Con le domande giuste da fare al venditore.
+          Hai trovato un annuncio? Te lo analizziamo. Sai già che modello vuoi? Ti diciamo
+          <strong>cosa ha di buono e cosa si rompe</strong>. Non sai cosa comprare? Raccontaci il
+          problema e <strong>ti proponiamo le strade possibili</strong>.
         </p>
         <ul class="hero__punti">
           <li><span aria-hidden="true">💰</span> Se stai pagando troppo</li>
@@ -69,6 +69,31 @@
       </section>
 
       <!-- ================= FORM ================= -->
+      <!-- ================= SCELTA DELLO STRUMENTO ================= -->
+      <nav class="strumenti" role="tablist" aria-label="Cosa vuoi fare">
+        <button type="button" class="strumento attivo" data-strumento="annuncio" role="tab" aria-selected="true">
+          <span class="strumento__icona" aria-hidden="true">🔍</span>
+          <span class="strumento__testi">
+            <strong>Analizza un annuncio</strong>
+            <small>Ho trovato qualcosa in vendita</small>
+          </span>
+        </button>
+        <button type="button" class="strumento" data-strumento="modello" role="tab" aria-selected="false">
+          <span class="strumento__icona" aria-hidden="true">⭐</span>
+          <span class="strumento__testi">
+            <strong>Scheda di un modello</strong>
+            <small>So cosa voglio, com'è fatto?</small>
+          </span>
+        </button>
+        <button type="button" class="strumento" data-strumento="consiglio" role="tab" aria-selected="false">
+          <span class="strumento__icona" aria-hidden="true">💡</span>
+          <span class="strumento__testi">
+            <strong>Cosa mi serve?</strong>
+            <small>Ho un problema, non so cosa comprare</small>
+          </span>
+        </button>
+      </nav>
+
       <section class="pannello" id="zonaForm">
         <!-- Passo 1: annuncio -->
         <article class="scheda scheda--passo" data-passo="1">
@@ -294,6 +319,105 @@
         </div>
       </section>
 
+      <!-- ================= STRUMENTO: SCHEDA MODELLO ================= -->
+      <section class="pannello" id="zonaModello" hidden>
+        <article class="scheda scheda--passo">
+          <header class="scheda__testata">
+            <span class="passo__numero">?</span>
+            <div>
+              <h2>Che prodotto ti interessa?</h2>
+              <p>Marca, modello e versione. Più sei preciso, più la scheda è utile.</p>
+            </div>
+          </header>
+
+          <fieldset class="campo">
+            <legend>Di che tipo di prodotto si tratta?</legend>
+            <div class="chip-gruppo" id="gruppoTipoModello">
+              <button type="button" class="chip attivo" data-valore="auto"><span aria-hidden="true">🚗</span> Auto</button>
+              <button type="button" class="chip" data-valore="moto"><span aria-hidden="true">🏍️</span> Moto</button>
+              <button type="button" class="chip" data-valore="telefono"><span aria-hidden="true">📱</span> Telefono</button>
+              <button type="button" class="chip" data-valore="pc"><span aria-hidden="true">💻</span> PC</button>
+              <button type="button" class="chip" data-valore="altro"><span aria-hidden="true">📦</span> Altro</button>
+            </div>
+          </fieldset>
+
+          <label class="campo campo--input">
+            <span class="campo__etichetta">Marca, modello e versione</span>
+            <input
+              type="text"
+              id="inputProdotto"
+              maxlength="120"
+              autocomplete="off"
+              placeholder="es. Golf 7 1.6 TDI 2016 · iPhone 13 Pro 256GB · Honda CB500F"
+            />
+          </label>
+
+          <p class="nota-modo">
+            <span aria-hidden="true">💡</span> Ti diciamo cosa ha di buono, cosa ha di brutto, cosa si
+            rompe di solito e quanto dovrebbe costare oggi sull'usato in Italia. Non serve un annuncio.
+          </p>
+        </article>
+
+        <div class="azione">
+          <button type="button" class="bottone bottone--primario" id="bottoneModello">
+            <span class="bottone__testo">Fammi la scheda</span>
+            <svg class="bottone__freccia" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M5 12h13" /><path d="m12.5 5.5 6.5 6.5-6.5 6.5" />
+            </svg>
+          </button>
+          <div class="avviso" id="avvisoErroreModello" role="alert" hidden>
+            <span aria-hidden="true">⚠️</span><span id="testoErroreModello"></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= STRUMENTO: CONSIGLIO DA UN PROBLEMA ================= -->
+      <section class="pannello" id="zonaConsiglio" hidden>
+        <article class="scheda scheda--passo">
+          <header class="scheda__testata">
+            <span class="passo__numero">?</span>
+            <div>
+              <h2>Raccontami il problema</h2>
+              <p>Non serve sapere cosa comprare: dimmi cosa non funziona e ci penso io.</p>
+            </div>
+          </header>
+
+          <label class="campo campo--input">
+            <span class="campo__etichetta">Qual è il problema?</span>
+            <textarea
+              id="inputProblema"
+              maxlength="600"
+              rows="4"
+              placeholder="es. Ho due gatti in casa e il pelo è ovunque, mia figlia è allergica. Casa di 90 mq con tappeti."
+            ></textarea>
+          </label>
+          <div class="contatore"><span id="contatoreProblema">0</span> / 600</div>
+
+          <label class="campo campo--input">
+            <span class="campo__etichetta">Budget <em>(facoltativo, €)</em></span>
+            <input type="number" id="inputBudgetConsiglio" min="1" max="1000000" step="10" placeholder="es. 600" inputmode="numeric" />
+          </label>
+
+          <div class="suggerimenti" id="esempiProblema">
+            <button type="button" class="suggerimento" data-testo="Ho due gatti in casa e il pelo è ovunque, mia figlia è allergica. Casa di 90 mq con tappeti.">Pelo di gatto e allergie</button>
+            <button type="button" class="suggerimento" data-testo="In camera da letto d'inverno si forma muffa sui muri e i vetri sono sempre bagnati di condensa.">Muffa e condensa</button>
+            <button type="button" class="suggerimento" data-testo="Lavoro da casa 8 ore al giorno al portatile e dopo un po' mi fa male la schiena e il collo.">Mal di schiena da scrivania</button>
+          </div>
+        </article>
+
+        <div class="azione">
+          <button type="button" class="bottone bottone--primario" id="bottoneConsiglio">
+            <span class="bottone__testo">Consigliami</span>
+            <svg class="bottone__freccia" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M5 12h13" /><path d="m12.5 5.5 6.5 6.5-6.5 6.5" />
+            </svg>
+          </button>
+          <div class="avviso" id="avvisoErroreConsiglio" role="alert" hidden>
+            <span aria-hidden="true">⚠️</span><span id="testoErroreConsiglio"></span>
+          </div>
+        </div>
+      </section>
+
       <!-- ================= LOADER ================= -->
       <section class="caricamento" id="caricamento" hidden aria-live="polite">
         <div class="radar" aria-hidden="true">
@@ -370,16 +494,116 @@
           </button>
         </article>
 
+
+      </section>
+
+      <!-- ================= RISULTATI: SCHEDA MODELLO ================= -->
+      <section class="risultati" id="risultatiModello" hidden>
+        <h2 class="risultati__titolo">La scheda del modello</h2>
+
+        <article class="scheda scheda--risultato" id="cardModello" style="--ritardo: 0ms">
+          <header class="scheda__testata scheda__testata--risultato">
+            <span class="scheda__icona" aria-hidden="true">⭐</span>
+            <h3 id="titoloModello">Prodotto</h3>
+          </header>
+
+          <div class="punteggio">
+            <div class="punteggio__numero">
+              <span id="votoValore">–</span><span class="punteggio__su">/10</span>
+            </div>
+            <div class="punteggio__destra">
+              <span class="punteggio__etichetta" id="votoEtichetta"></span>
+              <div class="gauge"><span class="gauge__riempimento" id="gaugeVoto"></span></div>
+              <div class="gauge__scala"><span>Lascia stare</span><span>Nella media</span><span>Ottimo</span></div>
+            </div>
+          </div>
+
+          <p class="verdetto" id="sintesiModello"></p>
+        </article>
+
+        <article class="scheda scheda--risultato" style="--ritardo: 120ms">
+          <header class="scheda__testata scheda__testata--risultato">
+            <span class="scheda__icona" aria-hidden="true">⚖️</span>
+            <h3>Pro e contro</h3>
+          </header>
+          <div class="procontro">
+            <div class="procontro__colonna">
+              <h4 class="procontro__titolo procontro__titolo--pro">Cosa ha di buono</h4>
+              <ul class="punti" id="listaPro"></ul>
+            </div>
+            <div class="procontro__colonna">
+              <h4 class="procontro__titolo procontro__titolo--contro">Cosa ha di brutto</h4>
+              <ul class="punti" id="listaContro"></ul>
+            </div>
+          </div>
+        </article>
+
+        <article class="scheda scheda--risultato" id="cardProblemiModello" style="--ritardo: 240ms">
+          <header class="scheda__testata scheda__testata--risultato">
+            <span class="scheda__icona" aria-hidden="true">🔧</span>
+            <h3>Problemi noti</h3>
+          </header>
+          <ul class="problemi" id="listaProblemiModello"></ul>
+        </article>
+
+        <article class="scheda scheda--risultato" style="--ritardo: 360ms">
+          <header class="scheda__testata scheda__testata--risultato">
+            <span class="scheda__icona" aria-hidden="true">💶</span>
+            <h3>Quanto dovrebbe costare</h3>
+          </header>
+          <p class="fascia-prezzo" id="fasciaPrezzo"></p>
+          <p class="scheda__intro" id="notaPrezzo"></p>
+          <p class="verdetto" id="consiglioModello"></p>
+        </article>
+      </section>
+
+      <!-- ================= RISULTATI: CONSIGLIO ================= -->
+      <section class="risultati" id="risultatiConsiglio" hidden>
+        <h2 class="risultati__titolo">Cosa ti serve davvero</h2>
+
+        <article class="scheda scheda--risultato" style="--ritardo: 0ms">
+          <header class="scheda__testata scheda__testata--risultato">
+            <span class="scheda__icona" aria-hidden="true">🎯</span>
+            <h3>Il problema</h3>
+          </header>
+          <p class="verdetto" id="testoBisogno"></p>
+        </article>
+
+        <article class="scheda scheda--risultato" style="--ritardo: 120ms">
+          <header class="scheda__testata scheda__testata--risultato">
+            <span class="scheda__icona" aria-hidden="true">🛒</span>
+            <h3>Le strade possibili</h3>
+          </header>
+          <p class="scheda__intro">In ordine, dalla più consigliata. Ognuna ha il suo compromesso.</p>
+          <ol class="soluzioni" id="listaSoluzioni"></ol>
+        </article>
+
+        <article class="scheda scheda--risultato" style="--ritardo: 240ms">
+          <header class="scheda__testata scheda__testata--risultato">
+            <span class="scheda__icona" aria-hidden="true">🔍</span>
+            <h3>Cosa guardare prima di comprare</h3>
+          </header>
+          <ul class="dettagli" id="listaCriteri"></ul>
+        </article>
+
+        <article class="scheda scheda--risultato" id="cardEvitare" style="--ritardo: 360ms">
+          <header class="scheda__testata scheda__testata--risultato">
+            <span class="scheda__icona" aria-hidden="true">🚫</span>
+            <h3>Da evitare</h3>
+          </header>
+          <p class="verdetto verdetto--rosso" id="testoEvitare"></p>
+        </article>
+      </section>
+
+      <!-- ================= CHIEDI ANCORA (comune ai tre strumenti) ================= -->
+      <section class="risultati" id="zonaChat" hidden>
         <!-- Card 5: conversazione di approfondimento -->
         <article class="scheda scheda--risultato" id="cardChat" style="--ritardo: 480ms">
           <header class="scheda__testata scheda__testata--risultato">
             <span class="scheda__icona" aria-hidden="true">💭</span>
             <h3>Chiedi ancora</h3>
           </header>
-          <p class="scheda__intro">
-            Il venditore ti ha risposto? Hai notato un dettaglio che nelle foto non c'era? Scrivilo qui:
-            continuo da dove siamo rimasti, senza rifare tutto da capo.
-          </p>
+          <p class="scheda__intro" id="introChat"></p>
 
           <div class="chat" id="chat" role="log" aria-live="polite"></div>
 
@@ -411,13 +635,13 @@
 
           <p class="chat-nota" id="notaChat"></p>
         </article>
-
-        <div class="ricomincia">
-          <button type="button" class="bottone bottone--fantasma" id="nuovaAnalisi">
-            Analizza un altro annuncio
-          </button>
-        </div>
       </section>
+
+      <div class="ricomincia" id="zonaRicomincia" hidden>
+        <button type="button" class="bottone bottone--fantasma" id="nuovaAnalisi">
+          Ricomincia da capo
+        </button>
+      </div>
     </main>
 
     <footer class="pieDiPagina">

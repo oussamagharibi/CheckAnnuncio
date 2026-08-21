@@ -38,6 +38,8 @@ const MAX_IMMAGINE_BYTE = 5 * 1024 * 1024; // 5 MB per foto
 const MAX_TOTALE_IMMAGINI_BYTE = 12 * 1024 * 1024; // 12 MB per richiesta
 const MAX_TESTO_CARATTERI = 8000;
 const MAX_OGGETTO_CARATTERI = 200;
+const MAX_PRODOTTO_CARATTERI = 120;
+const MAX_PROBLEMA_CARATTERI = 600;
 const TIPI_IMMAGINE_AMMESSI = ['image/jpeg', 'image/png', 'image/webp'];
 const LIMITE_ANALISI_GIORNALIERE = 10;
 const TENTATIVI_JSON = 3; // 1 tentativo + 2 retry se il JSON non è valido
@@ -187,6 +189,28 @@ function creaSessione(ip, dati, analisi) {
     messaggi: [
       { role: 'user', content: costruisciContenutoUtente(dati) },
       { role: 'assistant', content: JSON.stringify(analisi) }
+    ]
+  });
+  return id;
+}
+
+/**
+ * Sessione di follow-up per gli strumenti che partono da testo (scheda modello,
+ * consiglio d'acquisto): niente immagini, quindi qui pesa quasi nulla.
+ */
+function creaSessioneGenerica(ip, promptUtente, scheda) {
+  potaSessioni();
+  const id = crypto.randomUUID();
+  const ora = Date.now();
+  sessioni.set(id, {
+    ip,
+    creata: ora,
+    ultimoUso: ora,
+    byte: 0,
+    domandeUsate: 0,
+    messaggi: [
+      { role: 'user', content: promptUtente },
+      { role: 'assistant', content: JSON.stringify(scheda) }
     ]
   });
   return id;
@@ -385,9 +409,9 @@ function dataDiOggi(adesso = new Date()) {
   };
 }
 
-const PROMPT_SISTEMA_CHAT = `Sei Sammy, l'analista di "Sammy AI". Hai appena consegnato all'utente l'analisi di un annuncio: la trovi nella conversazione, nel messaggio JSON che hai scritto tu. Le foto e il testo dell'annuncio sono ancora nella conversazione: puoi rileggerli.
+const PROMPT_SISTEMA_CHAT = `Sei Sammy, l'analista di "Sammy AI". Hai appena consegnato all'utente una valutazione: la trovi nella conversazione, nel messaggio JSON che hai scritto tu. Può essere l'analisi di un annuncio (con foto e testo, che sono ancora nella conversazione e puoi rileggere) oppure la scheda di un modello di prodotto.
 
-Ora l'utente ti fa una domanda di approfondimento, oppure ti dà un'informazione che nell'annuncio non c'era (cosa gli ha risposto il venditore, un difetto visto dal vivo, un documento mostrato).
+Ora l'utente ti fa una domanda di approfondimento, oppure ti dà un'informazione che prima non avevi (cosa gli ha risposto il venditore, un difetto visto dal vivo, una versione diversa del prodotto che sta valutando).
 
 Come rispondere:
 - In italiano, con il "tu", in TESTO NORMALE. Mai in JSON, mai in blocchi di codice.
@@ -400,6 +424,140 @@ Come rispondere:
 - Rispondi anche alle domande che allargano il campo: confronti con altri modelli, quanto offrire, se conviene aspettare, cosa controllare dal vivo. Fanno parte dell'aiuto all'acquisto. Rifiuta solo se la domanda non c'entra nulla con l'acquisto di questo oggetto.
 - Niente disclaimer, niente premesse: vai dritto al punto.
 - Testo semplice, senza markdown: niente **grassetto**, niente ##titoli, niente tabelle. Per un elenco usa un trattino a inizio riga.`;
+
+const CATEGORIE_MODELLO = ['auto', 'moto', 'telefono', 'pc', 'altro'];
+
+const PROMPT_SISTEMA_MODELLO = `Sei Sammy, l'esperto di "Sammy AI". L'utente ti dice un prodotto — un'auto, una moto, uno smartphone, un computer, un elettrodomestico — e tu gli fai la scheda onesta di QUEL modello: cosa ha di buono, cosa ha di brutto, cosa si rompe e quanto dovrebbe costare oggi sull'usato in Italia.
+
+Non stai valutando un annuncio: stai valutando il PRODOTTO in sé. Nessuno ti sta cercando di truffare, quindi non parlare di truffe.
+
+## Come ragionare
+
+**Identifica bene il modello.** L'utente può essere vago ("Golf 7", "iPhone 13") o preciso ("Golf 7 1.6 TDI 110 CV Comfortline 2016"). Riporta in "prodotto" la versione normalizzata e completa che hai capito, con gli anni di produzione. Se l'indicazione è ambigua e cambia molto la risposta (per esempio "Golf" senza generazione, o una motorizzazione che esiste in versioni molto diverse), scegli la variante più diffusa in Italia, dillo nella sintesi e invita a precisare.
+
+**Sii onesto sui difetti.** La parte utile della scheda sono i contro e i problemi noti. Un prodotto senza difetti non esiste: se l'elenco dei contro è corto e generico, la scheda non serve a niente. Non ammorbidire.
+
+**Usa la data di oggi** (te la trovi all'inizio del messaggio) per calcolare quanti anni ha il modello, se è ancora supportato (aggiornamenti software per telefoni e computer, ricambi e assistenza per veicoli), e per il prezzo dell'usato corrente.
+
+**Prezzi: mercato italiano dell'usato, in euro.** Dai una forbice realistica per un esemplare in buone condizioni con chilometraggio/usura nella media. Se il prezzo dipende molto da un fattore (km, taglio di memoria, allestimento), dillo nella nota. Se non hai elementi per una stima affidabile, metti min e max a 0 e spiegalo nella nota invece di inventare cifre.
+
+**Problemi noti**: gli stessi criteri che useresti su un annuncio. Difetti documentati di QUELLA meccanica o di QUEL modello, non genericità. Per i veicoli: distribuzione, cambio, turbo, FAP, frizione, consumo d'olio, elettronica, richiami. Per telefoni e computer: batteria, scocca, dissipazione, tastiera, saldature, fine supporto software. Indica a quali anni o chilometraggi si presenta e l'ordine di grandezza del costo di riparazione in euro; se non lo sai con ragionevole precisione, scrivi che è da preventivare.
+
+**Il voto** è "quanto conviene comprarlo oggi sull'usato", da 1 a 10: tiene dentro affidabilità, costi di gestione, quanto regge il valore e quanto è ancora attuale. Un prodotto ottimo ma ormai vecchio e costoso da mantenere non merita 8.
+
+## Formato della risposta (OBBLIGATORIO)
+
+Rispondi ESCLUSIVAMENTE con un oggetto JSON valido, senza testo prima o dopo, senza blocchi di codice markdown. Schema esatto:
+
+{
+  "prodotto": "<il modello normalizzato, con anni di produzione, max 90 caratteri>",
+  "voto": <intero da 1 a 10: quanto conviene comprarlo oggi sull'usato>,
+  "sintesi": "<3-5 frasi: cos'è, com'è invecchiato, per chi ha senso oggi>",
+  "pro": [ { "titolo": "<max 45 caratteri>", "dettaglio": "<1-2 frasi concrete>" } ],
+  "contro": [ { "titolo": "<max 45 caratteri>", "dettaglio": "<1-2 frasi concrete>" } ],
+  "problemi": [
+    {
+      "componente": "<max 40 caratteri>",
+      "gravita": "<alta|media|bassa>",
+      "descrizione": "<qual è il problema, a che età o km, costo indicativo in euro>",
+      "verifica": "<come controllarlo prima di comprare>"
+    }
+  ],
+  "prezzo": {
+    "min": <intero, euro>,
+    "max": <intero, euro>,
+    "nota": "<1-2 frasi: da cosa dipende il prezzo dentro questa forbice>"
+  },
+  "consiglio": "<2-4 frasi: a chi conviene e a chi conviene evitarlo, con l'alternativa da guardare se non fa per lui>"
+}
+
+Regole rigide:
+- "pro": da 3 a 5 elementi. "contro": da 3 a 5 elementi. Devono essere specifici di questo modello.
+- "problemi": da 2 a 4 elementi. Se il prodotto è davvero senza difetti ricorrenti noti, metti un elenco vuoto e spiegalo nella sintesi.
+- Ogni campo di testo al massimo 2 frasi. Niente ripetizioni fra sezioni.
+- Tutto in italiano, con il "tu". Niente markdown dentro i campi.`;
+
+function costruisciPromptModello(dati, adesso) {
+  const oggi = dataDiOggi(adesso);
+  const righe = [];
+  righe.push(`OGGI È ${oggi.testo.toUpperCase()} (${oggi.iso}). Siamo in ${oggi.stagione}.`);
+  righe.push(
+    `L'anno corrente è ${oggi.anno}: usalo per l'età del modello, il supporto residuo e i prezzi dell'usato di oggi.`
+  );
+  righe.push('');
+  if (dati.categoria) righe.push(`Tipo di prodotto: ${dati.categoria}`);
+  righe.push(`Prodotto da valutare: ${dati.prodotto}`);
+  righe.push('');
+  righe.push('Rispondi solo con il JSON previsto dallo schema.');
+  return righe.join("\n");
+}
+
+const PROMPT_SISTEMA_CONSIGLIO = `Sei Sammy, il consulente d'acquisto di "Sammy AI". L'utente non ti dice quale prodotto vuole: ti racconta un PROBLEMA che ha in casa, in auto, al lavoro. Tu capisci di cosa ha davvero bisogno e gli proponi le strade possibili.
+
+Esempio del tono giusto: "ho problemi con la polvere dei gatti in casa" non si risolve dicendo "compra un aspirapolvere". Si risolve spiegando che il pelo di gatto si accumula ogni giorno e serve qualcosa di quotidiano e automatico, che i tessuti trattengono più del pavimento, e che un purificatore attacca il problema da un lato diverso rispetto a un robot aspirapolvere. Poi si propongono le opzioni, con i loro compromessi.
+
+## Come ragionare
+
+**Parti dal bisogno, non dal prodotto.** Riformula il problema in una riga per far vedere che hai capito. Se il problema ha una causa che si può togliere a monte (una perdita d'acqua, una finestra che non chiude, un filtro mai cambiato), dillo PRIMA di proporre acquisti: a volte la soluzione giusta costa zero.
+
+**Proponi 2-4 strade diverse fra loro**, non quattro varianti della stessa cosa. Ognuna deve avere un suo compromesso onesto: cosa risolve e cosa NON risolve, quanto costa mantenerla, quanto rumore fa, quanto spazio occupa, quanto lavoro richiede.
+
+**Gli esempi di prodotto sono orientativi.** Puoi citare 2-3 modelli concreti e diffusi in Italia per far capire la fascia, ma avvisa che sono esempi e non l'unica scelta. Non inventare modelli che non esistono: se non sei sicuro di un nome preciso, descrivi la categoria e le caratteristiche da cercare.
+
+**Prezzi in euro, mercato italiano, prodotti nuovi** salvo che l'usato abbia senso e in quel caso dillo.
+
+**Usa la data di oggi** (la trovi all'inizio del messaggio) per non consigliare prodotti fuori produzione o superati, e per tenere conto della stagione se conta.
+
+**Sii concreto sui criteri di scelta**: cosa deve guardare l'utente sulla scheda tecnica per non sbagliare acquisto. Numeri, non aggettivi.
+
+**Di' anche cosa evitare**, e perché: la fascia di prodotto che sembra la soluzione ma non lo è, o l'errore tipico di chi compra per quel problema.
+
+## Formato della risposta (OBBLIGATORIO)
+
+Rispondi ESCLUSIVAMENTE con un oggetto JSON valido, senza testo prima o dopo, senza blocchi di codice markdown. Schema esatto:
+
+{
+  "bisogno": "<1-2 frasi: il problema riformulato, per far vedere che hai capito cosa serve davvero>",
+  "soluzioni": [
+    {
+      "tipo": "<la categoria di soluzione, max 55 caratteri, es. 'Robot aspirapolvere con base autosvuotante'>",
+      "perche": "<1-2 frasi: perché risolve QUESTO problema>",
+      "esempi": ["<2-3 modelli concreti e diffusi in Italia, con la fascia>"],
+      "prezzoMin": <intero, euro>,
+      "prezzoMax": <intero, euro>,
+      "attenzione": "<1-2 frasi: il compromesso onesto, cosa NON risolve, che manutenzione chiede>"
+    }
+  ],
+  "criteri": [
+    { "titolo": "<max 45 caratteri, cosa guardare>", "dettaglio": "<1-2 frasi con numeri concreti>" }
+  ],
+  "daEvitare": "<2-3 frasi: cosa non comprare per questo problema e perché>"
+}
+
+Regole rigide:
+- "soluzioni": da 2 a 4 elementi, davvero diversi tra loro. Ordinali dalla più consigliata alla meno.
+- "esempi": da 1 a 3 stringhe per soluzione. Se non conosci modelli affidabili, scrivi invece le caratteristiche da cercare.
+- "criteri": da 3 a 5 elementi.
+- Se il prezzo non è stimabile, metti 0 e 0 e spiegalo in "attenzione".
+- Ogni campo di testo al massimo 2 frasi. Tutto in italiano, con il "tu". Niente markdown dentro i campi.`;
+
+function costruisciPromptConsiglio(dati, adesso) {
+  const oggi = dataDiOggi(adesso);
+  const righe = [];
+  righe.push(`OGGI È ${oggi.testo.toUpperCase()} (${oggi.iso}). Siamo in ${oggi.stagione}.`);
+  righe.push('');
+  righe.push("Problema raccontato dall'utente:");
+  righe.push('"""');
+  righe.push(dati.problema);
+  righe.push('"""');
+  if (dati.budget) {
+    righe.push('');
+    righe.push(`Budget indicativo: ${dati.budget} €. Resta dentro questa cifra, e se una soluzione valida costa di più dillo esplicitamente.`);
+  }
+  righe.push('');
+  righe.push('Rispondi solo con il JSON previsto dallo schema.');
+  return righe.join("\n");
+}
 
 function costruisciPromptUtente(dati, adesso) {
   const righe = [];
@@ -785,6 +943,127 @@ function stringaPulita(valore, maxLunghezza) {
   return pulita.length > maxLunghezza ? pulita.slice(0, maxLunghezza - 1).trimEnd() + '…' : pulita;
 }
 
+const GRAVITA_AMMESSE = ['alta', 'media', 'bassa'];
+
+/** Normalizza l'elenco dei problemi noti: stessa forma per annunci e schede modello. */
+function normalizzaProblemi(elenco, massimo) {
+  return (Array.isArray(elenco) ? elenco : [])
+    .filter((p) => p && typeof p === 'object')
+    .map((p) => {
+      const gravita = typeof p.gravita === 'string' ? p.gravita.toLowerCase() : '';
+      return {
+        componente: stringaPulita(p.componente, 60),
+        gravita: GRAVITA_AMMESSE.includes(gravita) ? gravita : 'media',
+        descrizione: stringaPulita(p.descrizione, 500),
+        verifica: stringaPulita(p.verifica, 400)
+      };
+    })
+    .filter((p) => p.componente && p.descrizione)
+    .slice(0, massimo);
+}
+
+/** Coppie titolo/dettaglio per pro e contro. */
+function normalizzaPunti(elenco, massimo) {
+  return (Array.isArray(elenco) ? elenco : [])
+    .filter((p) => p && typeof p === 'object')
+    .map((p) => ({
+      titolo: stringaPulita(p.titolo, 70),
+      dettaglio: stringaPulita(p.dettaglio, 320)
+    }))
+    .filter((p) => p.titolo)
+    .slice(0, massimo);
+}
+
+/** Valida e normalizza un consiglio d'acquisto a partire da un problema. */
+function validaSchemaConsiglio(oggetto) {
+  if (!oggetto || typeof oggetto !== 'object' || Array.isArray(oggetto)) {
+    throw new Error('La risposta non è un oggetto JSON.');
+  }
+
+  const bisogno = stringaPulita(oggetto.bisogno, 400);
+  if (!bisogno) throw new Error('Campo "bisogno" vuoto.');
+
+  const soluzioni = (Array.isArray(oggetto.soluzioni) ? oggetto.soluzioni : [])
+    .filter((v) => v && typeof v === 'object')
+    .map((v) => {
+      let min = Math.round(Number(v.prezzoMin));
+      let max = Math.round(Number(v.prezzoMax));
+      if (!Number.isFinite(min) || min < 0) min = 0;
+      if (!Number.isFinite(max) || max < 0) max = 0;
+      if (min > max) {
+        const scambio = min;
+        min = max;
+        max = scambio;
+      }
+      return {
+        tipo: stringaPulita(v.tipo, 80),
+        perche: stringaPulita(v.perche, 320),
+        esempi: (Array.isArray(v.esempi) ? v.esempi : [])
+          .map((e) => stringaPulita(e, 90))
+          .filter(Boolean)
+          .slice(0, 3),
+        prezzoMin: min,
+        prezzoMax: max,
+        attenzione: stringaPulita(v.attenzione, 320)
+      };
+    })
+    .filter((v) => v.tipo && v.perche)
+    .slice(0, 4);
+
+  if (soluzioni.length < 2) throw new Error('Servono almeno 2 voci in "soluzioni".');
+
+  const criteri = normalizzaPunti(oggetto.criteri, 5);
+  if (criteri.length < 2) throw new Error('Servono almeno 2 voci in "criteri".');
+
+  const daEvitare = stringaPulita(oggetto.daEvitare, 500);
+
+  return { bisogno, soluzioni, criteri, daEvitare };
+}
+
+/**
+ * Valida e normalizza la scheda di un modello.
+ * Lancia un Error se lo schema non torna, così scatta il retry.
+ */
+function validaSchemaModello(oggetto) {
+  if (!oggetto || typeof oggetto !== 'object' || Array.isArray(oggetto)) {
+    throw new Error('La risposta non è un oggetto JSON.');
+  }
+
+  const prodotto = stringaPulita(oggetto.prodotto, 110);
+  if (!prodotto) throw new Error('Campo "prodotto" mancante.');
+
+  let voto = Number(oggetto.voto);
+  if (!Number.isFinite(voto)) throw new Error('Campo "voto" non numerico.');
+  voto = Math.min(10, Math.max(1, Math.round(voto)));
+
+  const sintesi = stringaPulita(oggetto.sintesi, 800);
+  if (!sintesi) throw new Error('Campo "sintesi" vuoto.');
+
+  const pro = normalizzaPunti(oggetto.pro, 5);
+  const contro = normalizzaPunti(oggetto.contro, 5);
+  if (pro.length < 2) throw new Error('Servono almeno 2 voci in "pro".');
+  if (contro.length < 2) throw new Error('Servono almeno 2 voci in "contro".');
+
+  const problemi = normalizzaProblemi(oggetto.problemi, 4);
+
+  const grezzoPrezzo = oggetto.prezzo && typeof oggetto.prezzo === 'object' ? oggetto.prezzo : {};
+  let min = Math.round(Number(grezzoPrezzo.min));
+  let max = Math.round(Number(grezzoPrezzo.max));
+  if (!Number.isFinite(min) || min < 0) min = 0;
+  if (!Number.isFinite(max) || max < 0) max = 0;
+  if (min > max) {
+    const scambio = min;
+    min = max;
+    max = scambio;
+  }
+  const prezzo = { min, max, nota: stringaPulita(grezzoPrezzo.nota, 320) };
+
+  const consiglio = stringaPulita(oggetto.consiglio, 600);
+  if (!consiglio) throw new Error('Campo "consiglio" vuoto.');
+
+  return { prodotto, voto, sintesi, pro, contro, problemi, prezzo, consiglio };
+}
+
 /**
  * Verifica che la risposta rispetti lo schema e la normalizza.
  * Lancia un Error se lo schema non è rispettato (così scatta il retry).
@@ -853,20 +1132,7 @@ function validaSchema(oggetto, categoria) {
 
   if (grezzoAffidabilita && typeof grezzoAffidabilita === 'object') {
     const verdettoAff = stringaPulita(grezzoAffidabilita.verdetto, 700);
-    const gravitaAmmesse = ['alta', 'media', 'bassa'];
-    const problemi = (Array.isArray(grezzoAffidabilita.problemi) ? grezzoAffidabilita.problemi : [])
-      .filter((p) => p && typeof p === 'object')
-      .map((p) => {
-        const gravita = typeof p.gravita === 'string' ? p.gravita.toLowerCase() : '';
-        return {
-          componente: stringaPulita(p.componente, 60),
-          gravita: gravitaAmmesse.includes(gravita) ? gravita : 'media',
-          descrizione: stringaPulita(p.descrizione, 500),
-          verifica: stringaPulita(p.verifica, 400)
-        };
-      })
-      .filter((p) => p.componente && p.descrizione)
-      .slice(0, 6);
+      const problemi = normalizzaProblemi(grezzoAffidabilita.problemi, 6);
 
     if (verdettoAff) affidabilita = { verdetto: verdettoAff, problemi };
   }
@@ -1253,6 +1519,207 @@ app.post('/api/analizza', async (req, res) => {
   } finally {
     // Anche le analisi fallite consumano token: vanno contate.
     if (consumo.chiamate > 0) registraConsumo(consumo, canale);
+  }
+});
+
+/**
+ * Chiede all'AI un JSON e lo valida, con retry se non è utilizzabile.
+ * Usato dalla scheda modello e dal consiglio d'acquisto.
+ */
+async function generaScheda({ sistema, promptUtente, valida, etichetta, consumo }) {
+  const messaggi = [{ role: 'user', content: promptUtente }];
+  let ultimoErrore = null;
+
+  for (let tentativo = 1; tentativo <= TENTATIVI_JSON; tentativo++) {
+    const risposta = await client.messages.create({
+      model: MODELLO,
+      max_tokens: MAX_TOKEN_RISPOSTA,
+      thinking: { type: 'adaptive' },
+      output_config: { effort: SFORZO },
+      system: [{ type: 'text', text: sistema, cache_control: { type: 'ephemeral' } }],
+      messages: messaggi
+    });
+    sommaConsumo(consumo, risposta.usage);
+
+    if (risposta.stop_reason === 'refusal') {
+      throw new ErroreUtente(
+        'rifiuto_modello',
+        "L'AI non è riuscita a rispondere su questo. Prova a riscriverlo diversamente."
+      );
+    }
+    if (risposta.stop_reason === 'max_tokens') {
+      console.warn(`[${etichetta}] risposta troncata al tentativo ${tentativo}`);
+    }
+
+    for (const candidato of candidatiTesto(risposta)) {
+      try {
+        return valida(estraiJson(candidato));
+      } catch (errore) {
+        ultimoErrore = errore;
+      }
+    }
+
+    console.warn(
+      `[${etichetta}] tentativo ${tentativo}/${TENTATIVI_JSON} scartato: ${ultimoErrore && ultimoErrore.message}`
+    );
+    if (tentativo === TENTATIVI_JSON) break;
+
+    messaggi.push({
+      role: 'assistant',
+      content: risposta.content && risposta.content.length ? risposta.content : '(risposta vuota)'
+    });
+    messaggi.push({
+      role: 'user',
+      content:
+        `La risposta precedente non è utilizzabile (${ultimoErrore && ultimoErrore.message}). ` +
+        'Riscrivila ORA come singolo oggetto JSON valido conforme allo schema, senza testo introduttivo.'
+    });
+  }
+
+  const errore = new ErroreUtente(
+    'json_non_valido',
+    "L'AI ha risposto in un formato che non siamo riusciti a leggere. Riprova tra qualche secondo."
+  );
+  errore.dettaglio = ultimoErrore ? ultimoErrore.message : 'formato sconosciuto';
+  throw errore;
+}
+
+/** Risposta HTTP comune agli errori dei due strumenti "scheda". */
+function rispondiErroreScheda(res, errore, etichetta) {
+  if (errore instanceof ErroreUtente) {
+    if (errore.dettaglio) console.error(`[${etichetta}] ${errore.codice}: ${errore.dettaglio}`);
+    const stato = errore.codice === 'json_non_valido' ? 502 : 400;
+    return res.status(stato).json({ errore: errore.codice, messaggio: errore.message });
+  }
+  if (RateLimitError && errore instanceof RateLimitError) {
+    return res.status(503).json({
+      errore: 'ai_sovraccarica',
+      messaggio: 'Troppe richieste in questo momento. Riprova tra un minuto.'
+    });
+  }
+  if (APIError && errore instanceof APIError) {
+    console.error(`[${etichetta}] errore API ${errore.status}:`, errore.message);
+    return res.status(503).json({
+      errore: 'ai_non_disponibile',
+      messaggio: 'Il servizio non è raggiungibile in questo momento. Riprova tra poco.'
+    });
+  }
+  console.error(`[${etichetta}] errore inatteso:`, errore);
+  return res.status(500).json({
+    errore: 'errore_interno',
+    messaggio: 'Qualcosa è andato storto. Riprova tra qualche istante.'
+  });
+}
+
+/** Controlli comuni ai due strumenti "scheda": chiave configurata e limite giornaliero. */
+function bloccoPreliminare(res, ip) {
+  if (!client) {
+    res.status(503).json({
+      errore: 'chiave_mancante',
+      messaggio: 'Il servizio non è configurato: manca la chiave API.'
+    });
+    return true;
+  }
+  if (analisiRimaste(ip) <= 0) {
+    res.status(429).json({
+      errore: 'limite_raggiunto',
+      messaggio: `Hai usato tutte le ${LIMITE_ANALISI_GIORNALIERE} richieste gratuite di oggi. Torna domani. 🙂`,
+      analisiRimaste: 0
+    });
+    return true;
+  }
+  return false;
+}
+
+app.post('/api/consiglio', async (req, res) => {
+  const ip = chiaveIp(req);
+  if (bloccoPreliminare(res, ip)) return;
+
+  const corpo = req.body || {};
+  const problema = typeof corpo.problema === 'string'
+    ? corpo.problema.replace(/s+/g, ' ').trim().slice(0, MAX_PROBLEMA_CARATTERI)
+    : '';
+
+  if (problema.length < 10) {
+    return res.status(400).json({
+      errore: 'problema_mancante',
+      messaggio: 'Racconta il problema in una frase, per esempio "in casa ho due gatti e la polvere di pelo è ovunque".'
+    });
+  }
+
+  let budget = Math.round(Number(corpo.budget));
+  if (!Number.isFinite(budget) || budget <= 0 || budget > 1000000) budget = null;
+
+  const dati = { problema, budget };
+  const consumo = nuovoConsumo(MODELLO);
+
+  try {
+    const scheda = await generaScheda({
+      sistema: PROMPT_SISTEMA_CONSIGLIO,
+      promptUtente: costruisciPromptConsiglio(dati),
+      valida: validaSchemaConsiglio,
+      etichetta: 'consiglio',
+      consumo
+    });
+    registraAnalisi(ip);
+    const sessione = creaSessioneGenerica(ip, costruisciPromptConsiglio(dati), scheda);
+    return res.json({
+      ...scheda,
+      analisiRimaste: analisiRimaste(ip),
+      sessione,
+      domandeRimaste: MAX_DOMANDE_SEGUITO
+    });
+  } catch (errore) {
+    return rispondiErroreScheda(res, errore, 'consiglio');
+  } finally {
+    if (consumo.chiamate > 0) registraConsumo(consumo, 'consiglio');
+  }
+});
+
+app.post('/api/modello', async (req, res) => {
+  const ip = chiaveIp(req);
+  if (bloccoPreliminare(res, ip)) return;
+
+  const corpo = req.body || {};
+  const prodotto = typeof corpo.prodotto === 'string'
+    ? corpo.prodotto.replace(/s+/g, ' ').trim().slice(0, MAX_PRODOTTO_CARATTERI)
+    : '';
+
+  if (prodotto.length < 2) {
+    return res.status(400).json({
+      errore: 'prodotto_mancante',
+      messaggio: 'Scrivi marca e modello, per esempio "Golf 7 1.6 TDI 2016" o "iPhone 13 Pro".'
+    });
+  }
+
+  const categoria =
+    typeof corpo.categoria === 'string' && CATEGORIE_MODELLO.includes(corpo.categoria.toLowerCase())
+      ? corpo.categoria.toLowerCase()
+      : null;
+
+  const dati = { prodotto, categoria };
+  const consumo = nuovoConsumo(MODELLO);
+
+  try {
+    const scheda = await generaScheda({
+      sistema: PROMPT_SISTEMA_MODELLO,
+      promptUtente: costruisciPromptModello(dati),
+      valida: validaSchemaModello,
+      etichetta: 'modello',
+      consumo
+    });
+    registraAnalisi(ip);
+    const sessione = creaSessioneGenerica(ip, costruisciPromptModello(dati), scheda);
+    return res.json({
+      ...scheda,
+      analisiRimaste: analisiRimaste(ip),
+      sessione,
+      domandeRimaste: MAX_DOMANDE_SEGUITO
+    });
+  } catch (errore) {
+    return rispondiErroreScheda(res, errore, 'modello');
+  } finally {
+    if (consumo.chiamate > 0) registraConsumo(consumo, 'modello');
   }
 });
 
