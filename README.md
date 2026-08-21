@@ -2,7 +2,9 @@
 
 > **Nota sui nomi.** Il sito si chiama **Sammy AI**. Il repository, la cartella e il campo `name` in `package.json` restano `checkannuncio`: sono l'identità tecnica del progetto e cambiarli spezzerebbe il remote git e il deploy. Il nome vecchio non compare da nessuna parte nell'interfaccia.
 
-Sito anti-truffa che analizza con l'AI gli annunci di vendita (auto, telefoni, elettronica, qualunque cosa) e dice all'utente **quanto è rischioso**, **se il prezzo ha senso** e **cosa chiedere al venditore** prima di pagare.
+Consulente d'acquisto per annunci di vendita usati (auto, telefoni, elettronica, qualunque cosa). Analizza l'annuncio con l'AI e dice all'utente **se il prezzo è giusto**, **che difetti ha davvero quel modello**, **quanto è alto il rischio truffa** e **cosa chiedere al venditore** — prima di pagare.
+
+Il posizionamento conta: la maggior parte degli annunci non è una truffa, ma può comunque essere un cattivo affare. Tre delle quattro schede di risultato sono consiglio d'acquisto, una sola è anti-truffa, e il prompt di sistema lo dice esplicitamente all'AI per evitare che tratti ogni venditore come un sospetto.
 
 L'annuncio si può fornire in tre modi: **screenshot**, **link** o **testo incollato**.
 
